@@ -11,13 +11,46 @@ from router import Router
 
 
 class RouterCheck(unittest.TestCase):
+    def test_codex_requires_verified_package_identity(self):
+        from router import matches_window
+        self.assertFalse(matches_window("codex", (1, "chatgpt.exe", "Codex")))
+        self.assertFalse(matches_window("codex", (1, "chatgpt.exe", "Codex", "OpenAI.ChatGPT_example")))
+        self.assertTrue(matches_window("codex", (1, "chatgpt.exe", "Any project", "OpenAI.Codex_2p2nqsd0c76g0")))
+
+    def test_startup_never_changes_another_installations_entry(self):
+        import types
+        from contextlib import nullcontext
+        import router
+        values = {router.RUN_VALUE: ('"old install" --background', 1), "Unrelated": ("keep", 1)}
+        registry = types.SimpleNamespace(HKEY_CURRENT_USER=1, REG_SZ=1,
+            CreateKey=lambda *a: nullcontext(1), OpenKey=lambda *a: nullcontext(1),
+            QueryValueEx=lambda key, name: values[name],
+            SetValueEx=lambda key, name, reserved, kind, value: values.update({name: (value, kind)}),
+            DeleteValue=lambda key, name: values.pop(name))
+        with patch.dict(sys.modules, {"winreg": registry}), patch.object(router, "startup_command", return_value='"this install" --background'):
+            before = dict(values)
+            for enabled in (True, False):
+                with self.assertRaises(ValueError):
+                    router.set_startup(enabled)
+                self.assertEqual(values, before)
+            values[router.RUN_VALUE] = ('"this install" --background', 1)
+            router.set_startup(False)
+            self.assertEqual(values, {"Unrelated": ("keep", 1)})
+
+    def test_startup_failure_is_visible_without_a_console(self):
+        import router
+        self.assertTrue(callable(getattr(router, "run", None)))
+        with patch.object(router, "main", side_effect=RuntimeError("Hotkeys unavailable")), patch.object(router, "show_error") as notice:
+            self.assertEqual(router.run(), 1)
+            self.assertIn("Hotkeys unavailable", notice.call_args.args[0])
+
     def test_reconnect_uses_app_identity_and_refuses_ambiguous_windows(self):
         from router import matches_window
 
         class Desktop:
             records = [(10, "chrome.exe", "First — Hermes - Google Chrome"),
                        (20, "chrome.exe", "project - Pi Web - Google Chrome"),
-                       (30, "chatgpt.exe", "ChatGPT"),
+                       (30, "chatgpt.exe", "Codex", "OpenAI.Codex_2p2nqsd0c76g0"),
                        (40, "chrome.exe", "Hermes documentation - Google Chrome")]
             identities = {10: (1, 100), 20: (1, 100), 30: (2, 200), 40: (1, 100)}
             current = 20
@@ -209,6 +242,12 @@ class RouterCheck(unittest.TestCase):
         desktop.identities[10] = (1, 999)  # Same HWND and PID, different process lifetime.
         with self.assertRaises(ValueError):
             router.action("new")
+        self.assertEqual(len(desktop.sent), 1)
+        desktop.identities[10] = (1, 100)
+        desktop.modifiers_down = lambda: False
+        desktop.windows = lambda: [(10, "chrome.exe", "Unrelated - Google Chrome")]
+        with self.assertRaises(ValueError):
+            router.action("send")
         self.assertEqual(len(desktop.sent), 1)
         desktop.identities[10] = (1, 100)
         desktop.modifiers_down = lambda: True

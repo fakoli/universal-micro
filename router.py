@@ -8,8 +8,6 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
-import tkinter as tk
-from tkinter import ttk
 
 
 HARNESSES = ("codex", "hermes", "pi")
@@ -34,17 +32,17 @@ CODEX_KEYS = {
 HOTKEYS = {**dict(zip(range(13, 16), HARNESSES)), **dict(zip(range(19, 23), ACTIONS))}
 PROCESSES = {"codex": ("chatgpt.exe", "codex.exe"),
              "hermes": ("chrome.exe", "msedge.exe"), "pi": ("chrome.exe", "msedge.exe")}
-BINDINGS_PATH = Path(__file__).resolve().parent / ".local/bindings.json"
+BINDINGS_PATH = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "UniversalMicro/bindings.json"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE = "UniversalMicroRouter"
 
 
 def matches_window(harness, window):
-    _, process, title = window
+    _, process, title = window[:3]
     if process not in PROCESSES.get(harness, ()):
         return False
     if harness == "codex":
-        return True
+        return len(window) == 4 and window[3] == "OpenAI.Codex_2p2nqsd0c76g0"
     caption = title.casefold().removesuffix(" - google chrome").removesuffix(" - microsoft edge")
     if harness == "hermes":
         return caption == "hermes" or caption.endswith(" — hermes")
@@ -91,6 +89,12 @@ def startup_enabled():
 def set_startup(enabled):
     import winreg
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+        try:
+            value, kind = winreg.QueryValueEx(key, RUN_VALUE)
+        except FileNotFoundError:
+            value, kind = None, None
+        if value is not None and (kind != winreg.REG_SZ or value != startup_command()):
+            raise ValueError("Startup belongs to another installation; disable it there before switching installations")
         if enabled:
             winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, startup_command())
         else:
@@ -110,7 +114,7 @@ class Router:
     def bind(self, harness, window):
         if not matches_window(harness, window):
             raise ValueError("Choose a window showing that harness")
-        hwnd, process, _ = window
+        hwnd, process, _ = window[:3]
         identity = self.desktop.identity(hwnd)
         if not identity:
             raise ValueError("Window is no longer available; refresh the list")
@@ -155,6 +159,7 @@ class Router:
         self.selected = harness
 
     def action(self, action):
+        self.reconnect()
         if action not in ACTIONS or self.selected not in HARNESSES:
             raise ValueError("Select a harness with F13, F14 or F15 first")
         hwnd, identity = self.target(self.selected)
@@ -203,6 +208,8 @@ class Win32:
         self.kernel.GetProcessTimes.restype = w.BOOL
         self.kernel.QueryFullProcessImageNameW.argtypes = [w.HANDLE, w.DWORD, w.LPWSTR, ctypes.POINTER(w.DWORD)]
         self.kernel.QueryFullProcessImageNameW.restype = w.BOOL
+        self.kernel.GetPackageFamilyName.argtypes = [w.HANDLE, ctypes.POINTER(w.DWORD), w.LPWSTR]
+        self.kernel.GetPackageFamilyName.restype = w.LONG
         self.kernel.GetCurrentThreadId.argtypes = []
         self.kernel.GetCurrentThreadId.restype = w.DWORD
         self.kernel.CreateMutexW.argtypes = [ctypes.c_void_p, w.BOOL, w.LPCWSTR]
@@ -249,7 +256,9 @@ class Win32:
             if not self.kernel.QueryFullProcessImageNameW(handle, 0, path, ctypes.byref(size)):
                 return None
             born = times[0].dwHighDateTime << 32 | times[0].dwLowDateTime
-            return (pid.value, born), Path(path.value).name.lower()
+            family, length = ctypes.create_unicode_buffer(256), w.DWORD(256)
+            packaged = self.kernel.GetPackageFamilyName(handle, ctypes.byref(length), family) == 0
+            return (pid.value, born), Path(path.value).name.lower(), family.value if packaged else None
         finally:
             self.kernel.CloseHandle(handle)
 
@@ -283,7 +292,7 @@ class Win32:
             self.user.GetWindowTextW(hwnd, title, len(title))
             process = self.process(hwnd) if title.value else None
             if process and any(process[1] in names for names in PROCESSES.values()):
-                result.append((hwnd, process[1], title.value))
+                result.append((hwnd, process[1], title.value, process[2]))
             return True
 
         self.user.EnumWindows(collect, 0)
@@ -379,6 +388,8 @@ class Win32:
 
 
 def main():
+    import tkinter as tk
+    from tkinter import ttk
     desktop = Win32()
     if not desktop.claim_instance():
         try:
@@ -437,7 +448,7 @@ def main():
         for harness, (combo, candidates, label) in rows.items():
             old = candidates[combo.current()][0] if 0 <= combo.current() < len(candidates) else None
             candidates[:] = [x for x in available if matches_window(harness, x)]
-            combo["values"] = [f"{title}  [{hwnd}]" for hwnd, _, title in candidates]
+            combo["values"] = [f"{x[2]}  [{x[0]}]" for x in candidates]
             target = router.targets.get(harness)
             choice = old if any(x[0] == old for x in candidates) else target[0] if target else None
             index = next((i for i, x in enumerate(candidates) if x[0] == choice), None)
@@ -508,5 +519,21 @@ def main():
         desktop.close()
 
 
+def show_error(message):
+    user = ctypes.WinDLL("user32", use_last_error=True)
+    user.MessageBoxW.argtypes = [w.HWND, w.LPCWSTR, w.LPCWSTR, w.UINT]
+    user.MessageBoxW.restype = ctypes.c_int
+    user.MessageBoxW(None, message, "Universal Micro", 0x10)
+
+
+def run():
+    try:
+        main()
+    except Exception as error:
+        show_error(f"Could not start Universal Micro.\n\n{error}\n\nCheck Python/Tk, close other routers, and launch from a console for troubleshooting.")
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(run())
