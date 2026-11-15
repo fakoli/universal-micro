@@ -24,7 +24,7 @@ Add the smallest regression check that reproduces a behavior change. Test change
 
 Describe the concrete problem, resulting behavior, checks actually run and any remaining gaps. For UI changes include synthetic before/after evidence and check keyboard navigation, narrow widths and accessible names. Do not post real chats, recordings, device serials/full exports, hostnames, account state, credentials, private source or deployed-model details. The [bug template](.github/ISSUE_TEMPLATE/bug_report.md) asks for sanitized reproduction details.
 
-After publication use [issues](https://github.com/fakoli/universal-micro/issues) for bugs and support. This is a volunteer project with no response-time commitment. Report vulnerabilities through [SECURITY.md](SECURITY.md), never by posting sensitive details in a public issue.
+Use [issues](https://github.com/fakoli/universal-micro/issues) for bugs and support. This is a volunteer project with no response-time commitment. Report vulnerabilities through [SECURITY.md](SECURITY.md), never by posting sensitive details in a public issue.
 
 Contributions are under the project's MIT license. No CLA is required. A contribution must be yours to share and must retain relevant attribution.
 

@@ -2,7 +2,7 @@
 
 One Work Louder Codex Micro layer for **Dictate, Send, Stop and New chat** across native Codex, Hermes WebUI and Pi Web. The top buttons select and focus the harness. Your existing native Codex layer remains the fallback.
 
-**Unpublished source preview — 0.1.0-preview.1.** Prepared for `fakoli/universal-micro`; review and manual release gates are tracked in [OSS_CHECKLIST.md](OSS_CHECKLIST.md). Browser support requires the exact patched revisions below. Stock clients are not claimed compatible.
+**Experimental Windows source preview — 0.1.0-preview.1.** See [releases](https://github.com/fakoli/universal-micro/releases), [validation and follow-up](OSS_CHECKLIST.md), and the supported revisions below. Browser support requires those exact patched revisions. Stock clients are not claimed compatible.
 
 ## What runs where
 
@@ -63,4 +63,4 @@ To remove an installation, disable its startup checkbox **from that installation
 
 ## Troubleshooting and development
 
-See [troubleshooting](docs/TROUBLESHOOTING.md), [manual acceptance](docs/ACCEPTANCE.md), [contribution checks](CONTRIBUTING.md), [security/privacy limits](SECURITY.md) and [third-party notices](THIRD_PARTY_NOTICES.md). MIT licensed; no warranty or guaranteed response time. After publication, sanitized bug reports belong in [project issues](https://github.com/fakoli/universal-micro/issues); that repository is not published by this preparation step.
+See [troubleshooting](docs/TROUBLESHOOTING.md), [manual compatibility checks](docs/ACCEPTANCE.md), [contribution checks](CONTRIBUTING.md), [security/privacy limits](SECURITY.md) and [third-party notices](THIRD_PARTY_NOTICES.md). MIT licensed; no warranty or guaranteed response time. Sanitized bug reports belong in [project issues](https://github.com/fakoli/universal-micro/issues).

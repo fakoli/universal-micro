@@ -1,6 +1,6 @@
 # Source preview review
 
-**0.1.0-preview.1 — unpublished review candidate, 2026-11-14.** Canonical target: `fakoli/universal-micro`; license MIT. Publication is withheld for owner review.
+**0.1.0-preview.1 — experimental source preview, 2026-11-14.** Repository: [fakoli/universal-micro](https://github.com/fakoli/universal-micro); license MIT. The owner authorized publication with the compatibility limits below.
 
 ## Included
 
@@ -25,7 +25,7 @@ Local validation on Windows 11 x64:
 
 Python 3.12.15/Tk 8.6 and Python 3.14.8/Tk 9.0 are the locally checked support endpoints. Node is 24.19.0. The Pi build emits an upstream dynamic-dependency warning for its session-export route; compilation and type checking still pass. Node's TypeScript-stripping API prints its experimental warning. No production server was launched for this preparation.
 
-CI YAML and pinned official action references were checked, but hosted CI has **not** run: no project repository has been created/pushed. An extracted archive on the development host is **not** fresh-machine acceptance. A separate fresh public Hermes clone also passed the documented LF checkout, check/apply/transcription/reverse sequence.
+CI YAML and pinned official action references were checked. Hosted results are recorded in the [publication checklist](../OSS_CHECKLIST.md) and [GitHub Actions](https://github.com/fakoli/universal-micro/actions/workflows/checks.yml). An extracted archive on the development host is **not** fresh-machine acceptance. A separate fresh public Hermes clone also passed the documented LF checkout, check/apply/transcription/reverse sequence.
 
 ## Independent review and fixes
 
@@ -37,16 +37,16 @@ The candidate now checks the active capture mode and snapshots the requested mod
 
 Review boundaries and decisions:
 
-1. Public-base physical pad/Input import, microphones, native Codex, accessibility and fresh-machine behavior remain manual publication gates. Windows restart/sign-in validation is now owner-managed follow-up outside this workstream, not a completion blocker. Cost: restart behavior remains unverified until that separate session.
-2. Hosted CI and private vulnerability reporting await approved repository setup. Cost: hosted execution and the private reporting channel are not yet demonstrated; publishing must wait.
-3. Preservation relies on the executor's original file/device-map byte hashes and registry comparison; the reviewer examined that evidence without repeating private-state collection. Cost: it does not prove a new physical end-to-end run.
+1. Public-base physical pad/Input import, microphones, native Codex, accessibility and fresh-machine behavior remain compatibility follow-up. Windows restart/sign-in validation is owner-managed follow-up outside this workstream, not a completion blocker. Cost: restart behavior remains unverified until that separate session.
+2. Private vulnerability reporting is enabled and confirmed by API readback; hosted CI is tracked in the publication checklist. A report was not filed to test the reporter's end-to-end authentication flow.
+3. Preservation relies on the executor's original file/device-map byte hashes and registry comparison; the reviewer examined that evidence without repeating private-state collection. The owner's subsequent installed-hardware results are recorded below; the reviewer did not independently reproduce them.
 4. Review covers shipped changes and relevant client paths, not a full security audit of upstream applications/dependencies. Cost: upstream vulnerabilities may remain outside these checks.
 
 After activation of the Hermes safety and Pi error-recovery fixes, the owner repeated the physical checks on the current installed setup: Hermes, Pi and Codex selection, dictation, Send, Stop and New chat all passed. The native Layer 1 Codex fallback also passed, and the owner was instructed to leave the pad on that layer. These are owner-reported results for the installed modified clients and existing router. The source candidate retains stricter identity/startup behavior and a separate public Pi 0.17.0 base; those still require the documented clean-machine acceptance.
 
-## Remaining gates
+## Preview limitations and follow-up
 
-See [OSS_CHECKLIST.md](../OSS_CHECKLIST.md). Fresh-machine and public-base physical acceptance, accessibility, hosted CI and the private vulnerability-reporting channel remain pending for publication. The owner will validate Windows restart/sign-in separately; it is not required for completion of this workstream. Edge and unpackaged Codex are not live-validated. The browser title/focus checks are convenience safeguards, not a security boundary.
+See [OSS_CHECKLIST.md](../OSS_CHECKLIST.md). Fresh-machine and public-base physical acceptance and accessibility remain follow-up. The owner will validate Windows restart/sign-in separately; it is not required for completion of this workstream. Edge is not live-validated; unpackaged Codex is unsupported. The browser title/focus checks are convenience safeguards, not a security boundary.
 
 ## Planned release notes
 

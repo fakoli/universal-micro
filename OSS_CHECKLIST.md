@@ -5,7 +5,7 @@ Target: **fakoli/universal-micro**, **MIT**, source preview **0.1.0-preview.1**.
 ## Prepared for source review
 
 - [x] Owner/repository and MIT approved; public Fakoli commit identity, clean new local Git history and local intended remote configured.
-- [x] Separate candidate preserves the running installation; no deployed client, registry entry or Input layer migration is performed by this work.
+- [x] Separate source repository preserves the installed router and native Input layers; subsequent client fixes were activated with owner approval.
 - [x] Project LICENSE and upstream MIT notices retained; no client application/runtime/firmware bundle.
 - [x] Explicit public-file allowlist, source/archive checker and ignore rules exclude operator state and full upstream source trees.
 - [x] Generic README, button map, compatibility limits, installation/removal/recovery and startup migration guide; no real-chat screenshots or deployment examples.
@@ -17,20 +17,26 @@ Target: **fakoli/universal-micro**, **MIT**, source preview **0.1.0-preview.1**.
 - [x] Pi client build and relevant neighboring tests; Hermes JavaScript syntax and pending-transcription cleanup checks.
 - [x] Source installation/version metadata, contributor/support instructions, sanitized issue/PR templates and security/privacy documentation.
 - [x] Windows Python matrix and public-adapter CI configured with immutable action pins, read-only repository permissions and no private credentials.
-- [x] Final independent source review completed; Hermes mode-transition defect and Pi banner recovery issue fixed with failing-then-passing actual-source checks. Fresh archive extraction and publication payload checks passed locally. Owner-approved fixes were also activated in the existing modified clients; public-source physical acceptance remains a separate gate.
+- [x] Final independent source review completed; Hermes mode-transition defect and Pi banner recovery issue fixed with failing-then-passing actual-source checks. Fresh archive extraction and publication payload checks passed locally. Owner-approved fixes were also activated in the existing modified clients; public-source physical acceptance remains a compatibility follow-up.
 
-## Publication gates — deliberately pending
+## Source-preview publication
 
-- [ ] Maintainer reviews the exact local branch/archive, support claims, provenance, remaining limitations and independent review results.
-- [ ] Another person follows the public quickstart on a fresh Windows account/VM and completes [manual acceptance](docs/ACCEPTANCE.md), including the new public Pi base, keyboard/screen-reader UI checks, physical pad and native fallback.
+- [x] Owner authorized public publication of the reviewed MIT source preview with its documented limitations.
+- [x] Public `fakoli/universal-micro` repository created with issues enabled; private vulnerability reporting enabled and confirmed by API readback.
+- [ ] Push the reviewed source and verify MIT detection and public documentation links.
+- [ ] Run hosted CI, inspect results and resolve failures. Local checks are not hosted-CI evidence.
+- [ ] Tag the source preview and attach the allowlisted source archive/checksum and release notes from its Git tree. No binaries/installer are included.
+
+## Preview validation follow-up
+
+The experimental preview keeps these gaps explicit; they are not claims of completed validation or blockers for the owner-approved source preview.
+
+- [ ] Another person follows the public quickstart on a fresh Windows account/VM and completes [manual compatibility checks](docs/ACCEPTANCE.md), including the public Pi base, keyboard/screen-reader UI checks, physical pad and native fallback.
 - [ ] Install/migrate/remove and unchanged unrelated startup/Input state verified in that disposable environment.
-- [ ] Owner authorizes publication. Create the public repository, confirm MIT detection/description/support links, enable and test private vulnerability reporting. No working reporting route is claimed before that setup.
-- [ ] Run hosted CI after the approved push, inspect results and resolve failures. Workflow configuration and local checks are not hosted-CI evidence.
-- [ ] Only after the gates pass, tag the source preview and attach archive/checksum/release notes from the reviewed Git tree. No binaries/installer are included.
 
 ## Owner follow-up outside this workstream
 
-The owner will restart Windows and validate sign-in/reconnection in a separate session. This remains unverified; it is not a completion requirement or blocking gate for this workstream. The current implementation and installed-setup physical checks are complete. Publication remains on hold at the owner's request.
+The owner will restart Windows and validate sign-in/reconnection in a separate session. This remains unverified; it is not a completion requirement or blocking gate for this workstream. The current implementation and installed-setup physical checks are complete. The owner subsequently authorized source-preview publication.
 
 ## Later, on demonstrated demand
 

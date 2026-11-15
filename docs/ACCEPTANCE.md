@@ -1,4 +1,6 @@
-# Manual acceptance before a public preview
+# Manual compatibility checks
+
+These checks extend the experimental source preview's validation. Unchecked items remain documented follow-up; the owner authorized publishing the preview with those limits.
 
 Use a disposable chat, a harmless synthetic prompt and an exported device-layout backup. The owner should operate native Codex UI controls. Do not test against a valuable draft/run. Automated checks do not demonstrate real microphone, Input import, foreground input, accessibility or reboot behavior.
 
@@ -27,4 +29,4 @@ Windows restart/sign-in validation is owner-managed follow-up in a separate sess
 
 With startup enabled, restart or sign out/in and confirm one minimized router appears and reconnects; the first action still needs a selector. If separately checking removal, confirm a disabled/removed installation stays removed after sign-in. Leave unrelated startup entries and native Input layers intact. These checks are not required to complete this workstream.
 
-Record versions, public adapter commits, date, pass/fail and synthetic reproduction for failures. Do not collect private chats, recordings, account pages, full device exports or deployment/model metadata in the public evidence. A second person should complete the in-scope pass from the reviewed archive before publication; the optional owner restart check is separate.
+Record versions, public adapter commits, date, pass/fail and synthetic reproduction for failures. Do not collect private chats, recordings, account pages, full device exports or deployment/model metadata in the public evidence. A second person can use the reviewed archive to qualify broader compatibility claims; the optional owner restart check is separate.
