@@ -15,7 +15,7 @@ node test_transcription.cjs .cache/hermes
 node --check .cache/hermes/static/boot.js
 ```
 
-The patch adds the shared dispatcher and Hermes adapter to `static/`, loads them after `boot.js`, and exposes dictation mode/busy state through the existing recording/transcription lifecycle. Send and New chat wait for recording/transcription to finish. Raw-audio mode is refused. Existing Send, Stop, New and microphone code remains authoritative; no server or stream registry is added.
+The patch adds the shared dispatcher and Hermes adapter to `static/`, loads them after `boot.js`, and exposes dictation mode/busy state through the existing recording/transcription lifecycle. Send and New chat wait for recording/transcription to finish. Active raw capture is refused even if its preference has changed; capture mode is pinned before waiting for microphone permission. Existing Send, Stop, New and microphone code remains authoritative; no server or stream registry is added.
 
 Follow the pinned client's own installation/security instructions to deploy your reviewed source. For this static-only adapter, browser refresh is required; a Hermes server restart is not required by the patch. Authenticate, open a chat and configure a working native microphone/dictation path before testing the pad.
 

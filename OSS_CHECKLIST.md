@@ -17,7 +17,7 @@ Target: **fakoli/universal-micro**, **MIT**, source preview **0.1.0-preview.1**.
 - [x] Pi client build and relevant neighboring tests; Hermes JavaScript syntax and pending-transcription cleanup checks.
 - [x] Source installation/version metadata, contributor/support instructions, sanitized issue/PR templates and security/privacy documentation.
 - [x] Windows Python matrix and public-adapter CI configured with immutable action pins, read-only repository permissions and no private credentials.
-- [ ] Final independent review, fresh archive extraction and publication payload review recorded below after completion.
+- [x] Final independent source review completed; important Hermes mode-transition defect fixed with failing-then-passing actual-source checks; one minor Pi banner issue documented. Fresh archive extraction and publication payload checks passed locally.
 
 ## Publication gates — deliberately pending
 

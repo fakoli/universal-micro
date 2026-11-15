@@ -46,12 +46,12 @@
       "patches": [
         {
           "path": "patches/hermes-01-controller.patch",
-          "sha256": "36b13f9b790689d26ec4c2c8fdcdfa424e83228e185767674e378c806b8cee59"
+          "sha256": "82b5350e740f82505deaa3a0e7755dd4d3d74fe50fd9aa7c9d459e043bea5524"
         }
       ],
       "patched_files": {
         "static/index.html": "7b8b07da598a04e667afeb0465dd655f76bb233788a9c9f795dec42acc879175",
-        "static/boot.js": "f492174da992128adc24b294c115cb3ddfe2c6667bf5210be195067ac9739b45",
+        "static/boot.js": "f8638b254c82b1e16976de348c764b77eb5c99207e057e30fcf0485ea08526ee",
         "static/micro-controller.js": "8c9852ff7ed42c9ac6aa5b1afa74b12544bc13cd7c000156b386942293684c92",
         "static/micro-hermes.js": "542b7ff25c3a438814810c5e9b2fa8d70e4c155be331342db99f7d02ac78bb8c"
       }
