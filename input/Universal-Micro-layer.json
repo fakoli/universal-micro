@@ -1,0 +1,30 @@
+{
+  "keyboard": "codex_micro",
+  "language": "us",
+  "layer": {
+    "id": 0,
+    "name": "Universal Micro",
+    "color": "#2D8CFF",
+    "os": 1,
+    "layout": {
+      "base": [
+        [{"keycode":"KC_F13"}, {"keycode":"KC_F14"}],
+        [{"keycode":"KC_F15"}, {"keycode":"KC_NONE"}, {"keycode":"KC_NONE"}, {"keycode":"KC_NONE"}],
+        [{"keycode":"KC_F21"}, {"keycode":"KC_F22"}, {"keycode":"KC_NONE"}, {"keycode":"KC_NONE"}],
+        [{"keycode":"KC_F19"}, {"keycode":"KC_F20"}, {"keycode":"KC_NONE"}]
+      ],
+      "encoders": [[{"keycode":"KC_NONE"}, {"keycode":"KC_NONE"}, {"keycode":"KC_NONE"}]],
+      "joystick": {"type": "RADIAL", "sectors": []}
+    },
+    "lights": {
+      "backlight": {"effect":"solid", "brightness":0.5, "speed":0.5, "magic":1, "color":"#FFFFFF"},
+      "underglow": {"effect":"solid", "brightness":0.4, "speed":0.5, "magic":1, "color":"#2D8CFF"}
+    }
+  },
+  "actions": [],
+  "multiactions": [],
+  "smartActions": [],
+  "actionGroups": [],
+  "multiactionGroups": [],
+  "smartActionGroups": []
+}

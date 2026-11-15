@@ -1,0 +1,512 @@
+"""Universal Micro: explicit Windows targets, native app actions, no network service."""
+import ctypes
+from ctypes import wintypes as w
+import os
+import json
+import queue
+import subprocess
+import sys
+import threading
+from pathlib import Path
+import tkinter as tk
+from tkinter import ttk
+
+
+HARNESSES = ("codex", "hermes", "pi")
+ACTIONS = ("dictate", "send", "stop", "new")
+HERMES_KEYS = {
+    "dictate": ("CTRL", "ALT", "SHIFT", "D"),
+    "send": ("CTRL", "ALT", "SHIFT", "ENTER"),
+    "stop": ("CTRL", "ALT", "SHIFT", "X"),
+    "new": ("CTRL", "ALT", "SHIFT", "N"),
+}
+WEB_KEYS = {
+    "hermes": HERMES_KEYS,
+    "pi": {action: ("CTRL", "ALT", "SHIFT", key) for action, key in
+           zip(ACTIONS, ("R", "S", "T", "C"))},
+}
+CODEX_KEYS = {
+    "dictate": ("CTRL", "SHIFT", "D"),
+    "send": ("CTRL", "ENTER"),
+    "stop": ("ESC",),
+    "new": ("CTRL", "N"),
+}
+HOTKEYS = {**dict(zip(range(13, 16), HARNESSES)), **dict(zip(range(19, 23), ACTIONS))}
+PROCESSES = {"codex": ("chatgpt.exe", "codex.exe"),
+             "hermes": ("chrome.exe", "msedge.exe"), "pi": ("chrome.exe", "msedge.exe")}
+BINDINGS_PATH = Path(__file__).resolve().parent / ".local/bindings.json"
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+RUN_VALUE = "UniversalMicroRouter"
+
+
+def matches_window(harness, window):
+    _, process, title = window
+    if process not in PROCESSES.get(harness, ()):
+        return False
+    if harness == "codex":
+        return True
+    caption = title.casefold().removesuffix(" - google chrome").removesuffix(" - microsoft edge")
+    if harness == "hermes":
+        return caption == "hermes" or caption.endswith(" — hermes")
+    return caption == "pi web" or caption.endswith(" - pi web")
+
+
+def load_bindings(path=BINDINGS_PATH):
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    if not isinstance(data, dict) or any(h not in HARNESSES or p not in PROCESSES[h] for h, p in data.items()):
+        raise ValueError("Saved bindings are invalid; choose harness windows again")
+    return data
+
+
+def save_bindings(path, preferences):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(preferences, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def startup_command():
+    interpreter = Path(sys.executable).with_name("pythonw.exe")
+    if not interpreter.is_file():
+        raise OSError("pythonw.exe is missing; repair the Python installation")
+    command = subprocess.list2cmdline([str(interpreter), str(Path(__file__).resolve()), "--background"])
+    if len(command) > 260:
+        raise ValueError("Startup path is too long; move the router to a shorter path")
+    return command
+
+
+def startup_enabled():
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            value, kind = winreg.QueryValueEx(key, RUN_VALUE)
+            return kind == winreg.REG_SZ and value == startup_command()
+    except FileNotFoundError:
+        return False
+
+
+def set_startup(enabled):
+    import winreg
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+        if enabled:
+            winreg.SetValueEx(key, RUN_VALUE, 0, winreg.REG_SZ, startup_command())
+        else:
+            try:
+                winreg.DeleteValue(key, RUN_VALUE)
+            except FileNotFoundError:
+                pass
+
+
+class Router:
+    def __init__(self, desktop, preferences=None):
+        self.desktop = desktop
+        self.targets = {}
+        self.selected = None
+        self.preferences = dict(preferences or {})
+
+    def bind(self, harness, window):
+        if not matches_window(harness, window):
+            raise ValueError("Choose a window showing that harness")
+        hwnd, process, _ = window
+        identity = self.desktop.identity(hwnd)
+        if not identity:
+            raise ValueError("Window is no longer available; refresh the list")
+        if any(name != harness and target[0] == hwnd for name, target in self.targets.items()):
+            raise ValueError("Use a separate window for each harness")
+        self.targets[harness] = (hwnd, identity)
+        self.preferences[harness] = process
+        if self.selected == harness:
+            self.selected = None
+
+    def reconnect(self):
+        available = self.desktop.windows()
+        for harness in HARNESSES:
+            candidates = [x for x in available if matches_window(harness, x)
+                          and x[1] == self.preferences.get(harness, x[1])]
+            current = self.targets.get(harness)
+            if current and any(x[0] == current[0] for x in candidates) and self.desktop.identity(current[0]) == current[1]:
+                continue
+            self.targets.pop(harness, None)
+            if self.selected == harness:
+                self.selected = None
+            if len(candidates) == 1:
+                try:
+                    self.bind(harness, candidates[0])
+                except ValueError:
+                    pass  # The window may close between enumeration and binding.
+        return available
+
+    def target(self, harness):
+        target = self.targets.get(harness)
+        if not target or self.desktop.identity(target[0]) != target[1]:
+            raise ValueError(f"Open one {harness.title()} window, or choose it in the router")
+        return target
+
+    def select(self, harness):
+        self.selected = None
+        self.reconnect()
+        hwnd, _ = self.target(harness)
+        self.desktop.activate(hwnd)
+        if self.desktop.foreground() != hwnd:
+            raise ValueError("Windows did not focus the target; select it and try again")
+        self.selected = harness
+
+    def action(self, action):
+        if action not in ACTIONS or self.selected not in HARNESSES:
+            raise ValueError("Select a harness with F13, F14 or F15 first")
+        hwnd, identity = self.target(self.selected)
+        if self.desktop.foreground() != hwnd:
+            raise ValueError("Focus changed; select the harness again")
+        if self.desktop.modifiers_down():
+            raise ValueError("Release Ctrl, Alt, Shift and Windows keys first")
+        keys = CODEX_KEYS[action] if self.selected == "codex" else WEB_KEYS[self.selected][action]
+        self.desktop.send(keys, hwnd, identity)
+
+
+class Win32:
+    def __init__(self):
+        if os.name != "nt":
+            raise RuntimeError("The router requires Windows")
+        self.user = ctypes.WinDLL("user32", use_last_error=True)
+        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        signatures = {
+            "IsWindow": ([w.HWND], w.BOOL),
+            "IsWindowVisible": ([w.HWND], w.BOOL),
+            "GetForegroundWindow": ([], w.HWND),
+            "SetForegroundWindow": ([w.HWND], w.BOOL),
+            "SendMessageTimeoutW": ([w.HWND, w.UINT, w.WPARAM, w.LPARAM, w.UINT, w.UINT,
+                                     ctypes.POINTER(ctypes.c_size_t)], ctypes.c_ssize_t),
+            "IsIconic": ([w.HWND], w.BOOL),
+            "ShowWindow": ([w.HWND, ctypes.c_int], w.BOOL),
+            "GetWindowTextW": ([w.HWND, w.LPWSTR, ctypes.c_int], ctypes.c_int),
+            "FindWindowW": ([w.LPCWSTR, w.LPCWSTR], w.HWND),
+            "GetWindowThreadProcessId": ([w.HWND, ctypes.POINTER(w.DWORD)], w.DWORD),
+            "GetAsyncKeyState": ([ctypes.c_int], ctypes.c_short),
+            "RegisterHotKey": ([w.HWND, ctypes.c_int, w.UINT, w.UINT], w.BOOL),
+            "UnregisterHotKey": ([w.HWND, ctypes.c_int], w.BOOL),
+            "PeekMessageW": ([ctypes.POINTER(w.MSG), w.HWND, w.UINT, w.UINT, w.UINT], w.BOOL),
+            "GetMessageW": ([ctypes.POINTER(w.MSG), w.HWND, w.UINT, w.UINT], ctypes.c_int),
+            "PostThreadMessageW": ([w.DWORD, w.UINT, w.WPARAM, w.LPARAM], w.BOOL),
+            "SendInput": ([w.UINT, ctypes.c_void_p, ctypes.c_int], w.UINT),
+        }
+        for name, (args, result) in signatures.items():
+            fn = getattr(self.user, name)
+            fn.argtypes, fn.restype = args, result
+        self.kernel.OpenProcess.argtypes = [w.DWORD, w.BOOL, w.DWORD]
+        self.kernel.OpenProcess.restype = w.HANDLE
+        self.kernel.CloseHandle.argtypes = [w.HANDLE]
+        self.kernel.CloseHandle.restype = w.BOOL
+        self.kernel.GetProcessTimes.argtypes = [w.HANDLE] + [ctypes.POINTER(w.FILETIME)] * 4
+        self.kernel.GetProcessTimes.restype = w.BOOL
+        self.kernel.QueryFullProcessImageNameW.argtypes = [w.HANDLE, w.DWORD, w.LPWSTR, ctypes.POINTER(w.DWORD)]
+        self.kernel.QueryFullProcessImageNameW.restype = w.BOOL
+        self.kernel.GetCurrentThreadId.argtypes = []
+        self.kernel.GetCurrentThreadId.restype = w.DWORD
+        self.kernel.CreateMutexW.argtypes = [ctypes.c_void_p, w.BOOL, w.LPCWSTR]
+        self.kernel.CreateMutexW.restype = w.HANDLE
+        self.callback_type = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+        self.user.EnumWindows.argtypes = [self.callback_type, w.LPARAM]
+        self.user.EnumWindows.restype = w.BOOL
+        self.registered = []
+        self.events = queue.Queue(maxsize=64)
+        self.worker = None
+        self.thread_id = None
+        self.failure = None
+        self.instance = None
+
+    def claim_instance(self):
+        ctypes.set_last_error(0)
+        handle = self.kernel.CreateMutexW(None, False, r"Local\UniversalMicroRouter")
+        if not handle:
+            raise ctypes.WinError(ctypes.get_last_error())
+        if ctypes.get_last_error() == 183:
+            self.kernel.CloseHandle(handle)
+            return False
+        self.instance = handle
+        return True
+
+    def show_existing(self):
+        hwnd = self.user.FindWindowW(None, "Universal Micro")
+        if hwnd:
+            self.activate(hwnd)
+
+    def process(self, hwnd):
+        if not self.user.IsWindow(hwnd):
+            return None
+        pid = w.DWORD()
+        self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        handle = self.kernel.OpenProcess(0x1000, False, pid.value)
+        if not handle:
+            return None
+        try:
+            times = [w.FILETIME() for _ in range(4)]
+            if not self.kernel.GetProcessTimes(handle, *[ctypes.byref(x) for x in times]):
+                return None
+            path, size = ctypes.create_unicode_buffer(32768), w.DWORD(32768)
+            if not self.kernel.QueryFullProcessImageNameW(handle, 0, path, ctypes.byref(size)):
+                return None
+            born = times[0].dwHighDateTime << 32 | times[0].dwLowDateTime
+            return (pid.value, born), Path(path.value).name.lower()
+        finally:
+            self.kernel.CloseHandle(handle)
+
+    def identity(self, hwnd):
+        process = self.process(hwnd)
+        return process[0] if process else None
+
+    def foreground(self):
+        return self.user.GetForegroundWindow()
+
+    def activate(self, hwnd):
+        if self.user.IsIconic(hwnd):
+            self.user.ShowWindow(hwnd, 9)
+        self.user.SetForegroundWindow(hwnd)
+        # Cross-queue activation is asynchronous; WM_NULL waits for its processing.
+        result = ctypes.c_size_t()
+        if not self.user.SendMessageTimeoutW(hwnd, 0, 0, 0, 2, 1000, ctypes.byref(result)):
+            raise ValueError("Target did not respond; select it and try again")
+
+    def modifiers_down(self):
+        return any(self.user.GetAsyncKeyState(key) & 0x8000 for key in (0x10, 0x11, 0x12, 0x5B, 0x5C))
+
+    def windows(self):
+        result = []
+
+        @self.callback_type
+        def collect(hwnd, _):
+            if not self.user.IsWindowVisible(hwnd):
+                return True
+            title = ctypes.create_unicode_buffer(1024)
+            self.user.GetWindowTextW(hwnd, title, len(title))
+            process = self.process(hwnd) if title.value else None
+            if process and any(process[1] in names for names in PROCESSES.values()):
+                result.append((hwnd, process[1], title.value))
+            return True
+
+        self.user.EnumWindows(collect, 0)
+        return result
+
+    def send(self, keys, hwnd, identity):
+        # Windows serializes this input batch; recheck immediately before insertion.
+        if self.foreground() != hwnd or self.identity(hwnd) != identity or self.modifiers_down():
+            raise ValueError("Target changed before dispatch; nothing sent")
+
+        class Keyboard(ctypes.Structure):
+            _fields_ = [("vk", w.WORD), ("scan", w.WORD), ("flags", w.DWORD),
+                        ("time", w.DWORD), ("extra", ctypes.c_size_t)]
+
+        class Mouse(ctypes.Structure):
+            _fields_ = [("x", w.LONG), ("y", w.LONG), ("data", w.DWORD),
+                        ("flags", w.DWORD), ("time", w.DWORD), ("extra", ctypes.c_size_t)]
+
+        class Payload(ctypes.Union):
+            _fields_ = [("keyboard", Keyboard), ("mouse", Mouse)]
+
+        class Input(ctypes.Structure):
+            _fields_ = [("type", w.DWORD), ("payload", Payload)]
+
+        codes = {"CTRL": 0x11, "ALT": 0x12, "SHIFT": 0x10, "ENTER": 0x0D, "ESC": 0x1B}
+        values = [codes[key] if key in codes else ord(key) for key in keys]
+        events = [Input(1, Payload(keyboard=Keyboard(vk=key))) for key in values]
+        releases = [Input(1, Payload(keyboard=Keyboard(vk=key, flags=2))) for key in reversed(values)]
+        batch = (Input * (len(events) + len(releases)))(*events, *releases)
+        if self.user.SendInput(len(batch), batch, ctypes.sizeof(Input)) != len(batch):
+            release_batch = (Input * len(releases))(*releases)
+            self.user.SendInput(len(release_batch), release_batch, ctypes.sizeof(Input))
+            raise OSError("Windows blocked input; keep both apps at the same privilege level")
+
+    def register(self):
+        ready = threading.Event()
+
+        def listen():
+            self.thread_id = self.kernel.GetCurrentThreadId()
+            message = w.MSG()
+            try:
+                # Tk consumes thread messages; this thread owns registration and delivery.
+                self.user.PeekMessageW(ctypes.byref(message), None, 0, 0, 0)
+                for number in HOTKEYS:
+                    if not self.user.RegisterHotKey(None, number, 0x4000, 0x70 + number - 1):
+                        raise OSError(f"F{number} is already in use; close the other router or remapper")
+                    self.registered.append(number)
+                ready.set()
+                while True:
+                    result = self.user.GetMessageW(ctypes.byref(message), None, 0, 0)
+                    if result == 0:
+                        break
+                    if result == -1:
+                        raise OSError("Windows hotkey delivery stopped; restart the router")
+                    if message.message == 0x0312 and int(message.wParam) in HOTKEYS:
+                        try:
+                            self.events.put_nowait(int(message.wParam))
+                        except queue.Full:
+                            pass
+            except Exception as error:
+                self.failure = str(error)
+            finally:
+                for number in self.registered:
+                    self.user.UnregisterHotKey(None, number)
+                self.registered.clear()
+                ready.set()
+
+        self.worker = threading.Thread(target=listen, name="Micro hotkeys", daemon=True)
+        self.worker.start()
+        if not ready.wait(2):
+            self.close()
+            raise OSError("Windows hotkey registration timed out")
+        if self.failure:
+            self.close()
+            raise OSError(self.failure)
+
+    def pending(self):
+        if self.failure:
+            raise OSError(self.failure)
+        while True:
+            try:
+                yield self.events.get_nowait()
+            except queue.Empty:
+                return
+
+    def close(self):
+        if self.worker and self.worker.is_alive() and self.thread_id:
+            self.user.PostThreadMessageW(self.thread_id, 0x0012, 0, 0)
+            self.worker.join(timeout=1)
+        if self.instance:
+            self.kernel.CloseHandle(self.instance)
+            self.instance = None
+
+
+def main():
+    desktop = Win32()
+    if not desktop.claim_instance():
+        try:
+            if "--background" not in sys.argv:
+                desktop.show_existing()
+        finally:
+            desktop.close()
+        return
+    root = tk.Tk()
+    root.title("Universal Micro")
+    root.geometry("780x385")
+    rows = {}
+    try:
+        preferences = load_bindings()
+        initial_status = "Use a top key to select a harness. Missing windows reconnect automatically."
+    except (OSError, ValueError) as error:
+        preferences, initial_status = {}, str(error)
+    router = Router(desktop, preferences)
+    saved = dict(preferences)
+    status = tk.StringVar(value=initial_status)
+    ttk.Label(root, text="Universal Micro", font=("Segoe UI", 17)).pack(anchor="w", padx=18, pady=(16, 4))
+    ttk.Label(root, text="Reconnects automatically. Keep Hermes and Pi in dedicated browser windows.").pack(anchor="w", padx=18)
+    frame = ttk.Frame(root)
+    frame.pack(fill="x", padx=18, pady=12)
+    frame.columnconfigure(1, weight=1)
+
+    def bind(harness):
+        combo, candidates, label = rows[harness]
+        try:
+            index = combo.current()
+            if index < 0:
+                raise ValueError("Choose a window first")
+            router.bind(harness, candidates[index])
+            save_bindings(BINDINGS_PATH, router.preferences)
+            saved.clear()
+            saved.update(router.preferences)
+            label.config(text="Connected")
+            status.set(f"{harness.title()} bound. Press its top key to focus it.")
+        except (ValueError, OSError) as error:
+            status.set(str(error))
+
+    for row, harness in enumerate(HARNESSES):
+        ttk.Label(frame, text=f"F{13 + row}  {harness.title()}", width=15).grid(row=row, column=0, sticky="w", pady=5)
+        combo = ttk.Combobox(frame, state="readonly", width=68)
+        combo.grid(row=row, column=1, sticky="ew", padx=8)
+        ttk.Button(frame, text="Bind", command=lambda h=harness: bind(h)).grid(row=row, column=2)
+        label = ttk.Label(frame, text="Unbound", width=10)
+        label.grid(row=row, column=3, padx=8)
+        rows[harness] = (combo, [], label)
+
+    def refresh():
+        previous_selection = router.selected
+        available = router.reconnect()
+        if previous_selection and router.selected is None:
+            status.set(f"{previous_selection.title()} window changed. Press its top key to select it again.")
+        for harness, (combo, candidates, label) in rows.items():
+            old = candidates[combo.current()][0] if 0 <= combo.current() < len(candidates) else None
+            candidates[:] = [x for x in available if matches_window(harness, x)]
+            combo["values"] = [f"{title}  [{hwnd}]" for hwnd, _, title in candidates]
+            target = router.targets.get(harness)
+            choice = old if any(x[0] == old for x in candidates) else target[0] if target else None
+            index = next((i for i, x in enumerate(candidates) if x[0] == choice), None)
+            combo.current(index) if index is not None else combo.set("")
+            label.config(text="Connected" if target else "Choose" if len(candidates) > 1 else "Waiting")
+        if saved != router.preferences:
+            try:
+                save_bindings(BINDINGS_PATH, router.preferences)
+                saved.clear()
+                saved.update(router.preferences)
+            except OSError as error:
+                status.set(f"Could not save bindings: {error}")
+
+    def watch_windows():
+        refresh()
+        root.after(1500, watch_windows)
+
+    ttk.Button(root, text="Refresh windows", command=refresh).pack(anchor="w", padx=18)
+    ttk.Label(root, text="F19 Dictate   F20 Send   F21 Stop   F22 New chat").pack(anchor="w", padx=18, pady=(12, 4))
+    ttk.Label(root, textvariable=status, wraplength=740).pack(anchor="w", padx=18)
+    ttk.Label(root, text="Fallback: use the Micro touch sensor to return to native Layer 1.").pack(anchor="w", padx=18, pady=(8, 0))
+    startup = tk.BooleanVar(value=startup_enabled())
+
+    def toggle_startup():
+        try:
+            set_startup(startup.get())
+            status.set("Startup enabled at Windows sign-in." if startup.get() else "Startup disabled.")
+        except (OSError, ValueError) as error:
+            startup.set(startup_enabled())
+            status.set(str(error))
+
+    ttk.Checkbutton(root, text="Start at Windows sign-in", variable=startup, command=toggle_startup).pack(anchor="w", padx=18, pady=(12, 0))
+
+    def poll():
+        try:
+            pending = list(desktop.pending())
+        except OSError as error:
+            status.set(str(error))
+            root.bell()
+            return
+        for number in pending:
+            try:
+                name = HOTKEYS[number]
+                if name in HARNESSES:
+                    router.select(name)
+                    status.set(f"Selected: {name.title()}")
+                else:
+                    router.action(name)
+                    status.set(f"{router.selected.title()}: {name} shortcut sent")
+            except (ValueError, OSError) as error:
+                status.set(str(error))
+                root.bell()
+        root.after(30, poll)
+
+    def close():
+        desktop.close()
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", close)
+    try:
+        desktop.register()
+        watch_windows()
+        poll()
+        if "--background" in sys.argv:
+            root.iconify()
+        root.mainloop()
+    finally:
+        desktop.close()
+
+
+if __name__ == "__main__":
+    main()
