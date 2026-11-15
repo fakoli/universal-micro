@@ -23,9 +23,9 @@ Target: **fakoli/universal-micro**, **MIT**, source preview **0.1.0-preview.1**.
 
 - [x] Owner authorized public publication of the reviewed MIT source preview with its documented limitations.
 - [x] Public `fakoli/universal-micro` repository created with issues enabled; private vulnerability reporting enabled and confirmed by API readback.
-- [ ] Push the reviewed source and verify MIT detection and public documentation links.
-- [ ] Run hosted CI, inspect results and resolve failures. Local checks are not hosted-CI evidence.
-- [ ] Tag the source preview and attach the allowlisted source archive/checksum and release notes from its Git tree. No binaries/installer are included.
+- [x] Reviewed source pushed to public `main`; GitHub detects MIT and the public documentation/support routes are configured.
+- [x] Hosted [CI run](https://github.com/fakoli/universal-micro/actions/runs/43688763984) passed: Windows Python 3.12/3.14 and public adapter apply/reverse, voice checks, Pi build and neighboring tests.
+- [x] Versioned allowlisted source archive, SHA-256 and release notes prepared. Preview tags and published downloads are recorded in [GitHub Releases](https://github.com/fakoli/universal-micro/releases). No binaries/installer are included.
 
 ## Preview validation follow-up
 

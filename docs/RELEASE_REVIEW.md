@@ -25,7 +25,7 @@ Local validation on Windows 11 x64:
 
 Python 3.12.15/Tk 8.6 and Python 3.14.8/Tk 9.0 are the locally checked support endpoints. Node is 24.19.0. The Pi build emits an upstream dynamic-dependency warning for its session-export route; compilation and type checking still pass. Node's TypeScript-stripping API prints its experimental warning. No production server was launched for this preparation.
 
-CI YAML and pinned official action references were checked. Hosted results are recorded in the [publication checklist](../OSS_CHECKLIST.md) and [GitHub Actions](https://github.com/fakoli/universal-micro/actions/workflows/checks.yml). An extracted archive on the development host is **not** fresh-machine acceptance. A separate fresh public Hermes clone also passed the documented LF checkout, check/apply/transcription/reverse sequence.
+Hosted [CI passed](https://github.com/fakoli/universal-micro/actions/runs/43688763984) on Windows Python 3.12/3.14 and Ubuntu for the public-source adapter apply/reverse, voice checks, Pi build and 73 neighboring tests. Current runs are listed in [GitHub Actions](https://github.com/fakoli/universal-micro/actions/workflows/checks.yml). An extracted archive on the development host is **not** fresh-machine acceptance. A separate fresh public Hermes clone also passed the documented LF checkout, check/apply/transcription/reverse sequence.
 
 ## Independent review and fixes
 
