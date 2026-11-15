@@ -25,7 +25,7 @@ Speech is recorded and transcribed by the harness, outside the router. Dictation
 | Pi | Public `agegr/pi-web` 0.17.0 at `174bff967807cdb59abb0204198d3d7cc19c862d` plus both ordered patches; experimental pending hardware acceptance |
 | Contributor tools | Git and Node 24; Pi build uses its own pinned package lock |
 
-The original modified-client prototype passed owner-operated hardware acceptance. The new public Pi base has automated/build checks; it still needs the manual pass. An actual Windows sign-in/reboot and a fresh-machine install have not yet been verified.
+The modified-client setup passed owner-operated hardware acceptance. The new public Pi base has automated/build checks; it still needs the manual pass. Windows restart/sign-in validation is the owner's separate follow-up, outside this workstream's completion requirements, and is not claimed verified. A fresh-machine install also remains unverified.
 
 ## Install from source
 

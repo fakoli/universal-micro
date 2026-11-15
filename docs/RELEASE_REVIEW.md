@@ -37,7 +37,7 @@ The candidate now checks the active capture mode and snapshots the requested mod
 
 Review boundaries and decisions:
 
-1. Physical pad/Input import, microphones, native Codex, accessibility, fresh-machine and reboot behavior remain manual publication gates. Cost: compatibility or device-specific failures may remain undiscovered until that pass.
+1. Public-base physical pad/Input import, microphones, native Codex, accessibility and fresh-machine behavior remain manual publication gates. Windows restart/sign-in validation is now owner-managed follow-up outside this workstream, not a completion blocker. Cost: restart behavior remains unverified until that separate session.
 2. Hosted CI and private vulnerability reporting await approved repository setup. Cost: hosted execution and the private reporting channel are not yet demonstrated; publishing must wait.
 3. Preservation relies on the executor's original file/device-map byte hashes and registry comparison; the reviewer examined that evidence without repeating private-state collection. Cost: it does not prove a new physical end-to-end run.
 4. Review covers shipped changes and relevant client paths, not a full security audit of upstream applications/dependencies. Cost: upstream vulnerabilities may remain outside these checks.
@@ -46,7 +46,7 @@ After activation of the Hermes safety and Pi error-recovery fixes, the owner rep
 
 ## Remaining gates
 
-See [OSS_CHECKLIST.md](../OSS_CHECKLIST.md). Fresh-machine and physical acceptance, actual reboot/sign-in, accessibility, hosted CI and the private vulnerability-reporting channel remain pending. Edge and unpackaged Codex are not live-validated. The browser title/focus checks are convenience safeguards, not a security boundary.
+See [OSS_CHECKLIST.md](../OSS_CHECKLIST.md). Fresh-machine and public-base physical acceptance, accessibility, hosted CI and the private vulnerability-reporting channel remain pending for publication. The owner will validate Windows restart/sign-in separately; it is not required for completion of this workstream. Edge and unpackaged Codex are not live-validated. The browser title/focus checks are convenience safeguards, not a security boundary.
 
 ## Planned release notes
 

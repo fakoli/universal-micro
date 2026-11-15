@@ -23,10 +23,14 @@ Target: **fakoli/universal-micro**, **MIT**, source preview **0.1.0-preview.1**.
 
 - [ ] Maintainer reviews the exact local branch/archive, support claims, provenance, remaining limitations and independent review results.
 - [ ] Another person follows the public quickstart on a fresh Windows account/VM and completes [manual acceptance](docs/ACCEPTANCE.md), including the new public Pi base, keyboard/screen-reader UI checks, physical pad and native fallback.
-- [ ] Actual Windows sign-in/reboot, install/migrate/remove and unchanged unrelated startup/Input state verified in that disposable environment.
+- [ ] Install/migrate/remove and unchanged unrelated startup/Input state verified in that disposable environment.
 - [ ] Owner authorizes publication. Create the public repository, confirm MIT detection/description/support links, enable and test private vulnerability reporting. No working reporting route is claimed before that setup.
 - [ ] Run hosted CI after the approved push, inspect results and resolve failures. Workflow configuration and local checks are not hosted-CI evidence.
 - [ ] Only after the gates pass, tag the source preview and attach archive/checksum/release notes from the reviewed Git tree. No binaries/installer are included.
+
+## Owner follow-up outside this workstream
+
+The owner will restart Windows and validate sign-in/reconnection in a separate session. This remains unverified; it is not a completion requirement or blocking gate for this workstream. The current implementation and installed-setup physical checks are complete. Publication remains on hold at the owner's request.
 
 ## Later, on demonstrated demand
 
