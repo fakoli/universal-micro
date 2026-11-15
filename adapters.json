@@ -15,7 +15,7 @@
       "patches": [
         {
           "path": "patches/pi-01-dictation.patch",
-          "sha256": "17fc50611b3e3a511f73b75109409a5bed3645a262208b58e7cf519d55a25c1c"
+          "sha256": "50d8c7abaea692095da9e66197e64a6778308303ad571f69366339af3effa0dc"
         },
         {
           "path": "patches/pi-02-controller.patch",
@@ -23,7 +23,7 @@
         }
       ],
       "patched_files": {
-        "hooks/useVoiceInput.ts": "9ea1fad52230ee6420b615831319feb9d56ac234b4fc94f15687b8c5694bfa22",
+        "hooks/useVoiceInput.ts": "f66e9b3147bdf268a020d2cc2771b363fa8b4e5379e6183e4c2678c00faf2647",
         "lib/audio-wav.ts": "968354fb1f1168e7f63c424dda3be8e2f0de8ef4751988c69300982f1369ef74",
         "app/api/stt/route.ts": "eed1b240bac424bfd08caaccc1bcf991da19f66b6433e063949884554381d423",
         "components/ChatInput.tsx": "936a26ef89c03b0d6489b4f71065719b017ac714df4671d042327ebecdbbdfce",

@@ -10,6 +10,7 @@ function source(file) {
     .replace(/^import .*;\s*$/gm, '').replace(/\bexport /g, '');
 }
 (async () => {
+  if (!process.argv.includes('--hook-only')) {
   const env = {};
   let upstream, requests = [];
   const context = vm.createContext({Response, Request, FormData, Blob, AbortSignal,
@@ -55,4 +56,69 @@ function source(file) {
   assert.equal(data.getUint32(24, true), 16000);
   assert.deepEqual([44, 46, 48].map(i => data.getInt16(i, true)), [-32768, 0, 32767]);
   console.log('Pi speech: configuration, size/type limits, sanitized failures, transcript and WAV encoding passed.');
+  }
+  // Native React/browser boundaries are simulated; the actual hook owns recovery/timers.
+  const cells = [], timers = new Map(), transcripts = [];
+  let cursor, effects, api, clock = 0, timerId = 0, failure = 'permission denied';
+  const useState = initial => {
+    const index = cursor++;
+    cells[index] ??= {value: typeof initial === 'function' ? initial() : initial};
+    return [cells[index].value, next => { cells[index].value = typeof next === 'function' ? next(cells[index].value) : next; }];
+  };
+  const useRef = value => cells[cursor++] ??= {current: value};
+  const useEffect = (effect, dependencies) => {
+    const index = cursor++, previous = cells[index];
+    if (!previous || dependencies.some((value, i) => !Object.is(value, previous[i]))) effects.push(effect);
+    cells[index] = dependencies;
+  };
+  class Recorder {
+    static isTypeSupported() { return true; }
+    constructor(stream, options) { this.stream = stream; this.mimeType = options.mimeType; this.state = 'inactive'; }
+    start() { this.state = 'recording'; }
+    stop() { this.state = 'inactive'; this.ondataavailable({data: new Blob([new Uint8Array(1024)])}); this.onstop(); }
+  }
+  const hook = vm.createContext({Blob, Error, MediaRecorder: Recorder, useState, useRef, useEffect,
+    useCallback: fn => { cursor++; return fn; }, blobToWav16kMono: async value => value,
+    Date: class extends Date { static now() { return clock; } },
+    navigator: {mediaDevices: {getUserMedia: async () => { if (failure) throw new Error(failure); return {getTracks: () => [{stop() {}}]}; }}},
+    fetch: async () => Response.json({text: 'recovered dictation'}),
+    window: {setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, {fn, at: clock + delay}); return id; },
+      clearTimeout: id => timers.delete(id)},
+  });
+  vm.runInContext(source('hooks/useVoiceInput.ts') + ';globalThis.useVoice=useVoiceInput;', hook);
+  const onTranscript = text => transcripts.push(text);
+  const render = () => { cursor = 0; effects = []; api = hook.useVoice(onTranscript); effects.forEach(fn => fn()); };
+  const advance = milliseconds => {
+    clock += milliseconds;
+    for (const [id, timer] of [...timers]) if (timer.at <= clock) { timers.delete(id); timer.fn(); }
+    render();
+  };
+  render();
+  await api.start(); render();
+  assert.equal(api.error, 'permission denied');
+  advance(6000);
+  assert.equal(api.state, 'idle');
+  assert.equal(api.error, null, 'Expired error must clear its banner');
+  await api.start(); render();
+  advance(1000);
+  failure = 'newer error';
+  await api.start(); render();
+  advance(5000);
+  assert.equal(api.error, 'newer error', 'An older timer must not clear a newer error');
+  advance(1000);
+  assert.equal(api.error, null);
+  await api.start(); render();
+  failure = null;
+  const retry = api.start(); render();
+  assert.equal(api.error, null, 'A new attempt must clear the previous banner immediately');
+  await retry; render();
+  assert.equal(api.state, 'recording');
+  advance(500);
+  api.stop();
+  await new Promise(setImmediate);
+  render();
+  assert.equal(api.state, 'idle');
+  assert.equal(api.error, null);
+  assert.deepEqual(transcripts, ['recovered dictation']);
+  console.log('Pi dictation: banner expiry, retry recovery and stale-timer ownership passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
