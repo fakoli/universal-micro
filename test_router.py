@@ -244,15 +244,16 @@ class RouterCheck(unittest.TestCase):
             router.action("new")
         self.assertEqual(len(desktop.sent), 1)
         desktop.identities[10] = (1, 100)
+        router.select("pi")
+        desktop.modifiers_down = lambda: True
+        with self.assertRaises(ValueError):
+            router.action("stop")
+        self.assertEqual(router.selected, "pi")
         desktop.modifiers_down = lambda: False
         desktop.windows = lambda: [(10, "chrome.exe", "Unrelated - Google Chrome")]
         with self.assertRaises(ValueError):
             router.action("send")
-        self.assertEqual(len(desktop.sent), 1)
-        desktop.identities[10] = (1, 100)
-        desktop.modifiers_down = lambda: True
-        with self.assertRaises(ValueError):
-            router.action("stop")
+        self.assertIsNone(router.selected)
         self.assertEqual(len(desktop.sent), 1)
 
 

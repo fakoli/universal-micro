@@ -1,0 +1,65 @@
+name: checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python: ['3.12', '3.14']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - run: python -m unittest discover -v
+      - run: node test_web_controller.cjs
+      - run: python check_release.py
+  public-adapters:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Obtain immutable public sources
+        shell: python
+        run: |
+          import json, subprocess
+          from pathlib import Path
+          manifest = json.loads(Path("adapters.json").read_text())
+          for name, adapter in manifest["adapters"].items():
+              target = str(Path(".cache") / name)
+              subprocess.run(["git", "clone", "-c", "core.autocrlf=false", "-c", "core.eol=lf", "--no-checkout", adapter["repository"], target], check=True)
+              subprocess.run(["git", "-C", target, "checkout", "--detach", adapter["base_commit"]], check=True)
+      - name: Check, apply, reverse and reapply both adapters
+        shell: python
+        run: |
+          import subprocess, sys
+          for name in ("hermes", "pi"):
+              for mode in ("check", "apply", "reverse", "apply"):
+                  subprocess.run([sys.executable, "prepare_integrations.py", name, ".cache/" + name, "--mode", mode], check=True)
+      - run: node test_web_controller.cjs
+      - run: node test_transcription.cjs .cache/hermes
+      - run: node test_pi_voice.cjs .cache/pi
+      - run: node --check .cache/hermes/static/boot.js
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: .cache/pi
+      - run: npm run build
+        working-directory: .cache/pi
+      - run: node --experimental-strip-types --test components/ChatInput.test.mjs components/ChatInput.focus.test.mjs components/ChatInput.dormancy.test.mjs hooks/useKeyboardShortcuts.test.mjs
+        working-directory: .cache/pi
