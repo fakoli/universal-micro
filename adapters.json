@@ -1,0 +1,60 @@
+{
+  "version": "0.1.0-preview.1",
+  "adapters": {
+    "pi": {
+      "repository": "https://github.com/agegr/pi-web.git",
+      "base_commit": "174bff967807cdb59abb0204198d3d7cc19c862d",
+      "version": "0.17.0",
+      "license": "MIT",
+      "license_url": "https://github.com/agegr/pi-web/blob/174bff967807cdb59abb0204198d3d7cc19c862d/LICENSE",
+      "files": {
+        "LICENSE": "19cee3b1b8fd9b42f9515366bc1a7dfaaf22fcb006234ebb85ff2f6f8c52eb2b",
+        "components/ChatInput.tsx": "e597e3b237177bdb153abab6af088a0896dc19fca1becb336c1cb8c7728fe340",
+        "app/layout.tsx": "ccffdc37d69b861263f5c368fae1f95bbd26bd9df2a9caaa0fc8860ad0d17ff3"
+      },
+      "patches": [
+        {
+          "path": "patches/pi-01-dictation.patch",
+          "sha256": "17fc50611b3e3a511f73b75109409a5bed3645a262208b58e7cf519d55a25c1c"
+        },
+        {
+          "path": "patches/pi-02-controller.patch",
+          "sha256": "4bbfbd9f8248f92b44d64a61af1162c84fe93739c7310a119a392f6262fb7987"
+        }
+      ],
+      "patched_files": {
+        "hooks/useVoiceInput.ts": "9ea1fad52230ee6420b615831319feb9d56ac234b4fc94f15687b8c5694bfa22",
+        "lib/audio-wav.ts": "968354fb1f1168e7f63c424dda3be8e2f0de8ef4751988c69300982f1369ef74",
+        "app/api/stt/route.ts": "eed1b240bac424bfd08caaccc1bcf991da19f66b6433e063949884554381d423",
+        "components/ChatInput.tsx": "936a26ef89c03b0d6489b4f71065719b017ac714df4671d042327ebecdbbdfce",
+        "app/layout.tsx": "acd13c0c34d0402b6fb723834c5b80ade1d9621dc303150bd0c538bd4d1459af",
+        "public/micro-controller.js": "8c9852ff7ed42c9ac6aa5b1afa74b12544bc13cd7c000156b386942293684c92",
+        "public/micro-pi.js": "d717cb91dbff7568d933d3588849eb5f1d353d15f2caf468ed814d5c5786022b"
+      }
+    },
+    "hermes": {
+      "repository": "https://github.com/fakoli/hermes-webui.git",
+      "base_commit": "4772f16a95b5b7ad641780b6bd8a6a38f2109fb3",
+      "version": "pinned fork revision",
+      "license": "MIT",
+      "license_url": "https://github.com/fakoli/hermes-webui/blob/4772f16a95b5b7ad641780b6bd8a6a38f2109fb3/LICENSE",
+      "files": {
+        "LICENSE": "ad6b89c03f01d83966cb8bff66986090abc9ae3a3a7fff710a7501c233d7d4bf",
+        "static/index.html": "3b2cee4f6b340633d842216e888b621133b248c48cb974def4f529d49e1af53f",
+        "static/boot.js": "57ed74cf724e7015aca17e3c90f2775e66efac777eda25b82a8751569cd5bf67"
+      },
+      "patches": [
+        {
+          "path": "patches/hermes-01-controller.patch",
+          "sha256": "36b13f9b790689d26ec4c2c8fdcdfa424e83228e185767674e378c806b8cee59"
+        }
+      ],
+      "patched_files": {
+        "static/index.html": "7b8b07da598a04e667afeb0465dd655f76bb233788a9c9f795dec42acc879175",
+        "static/boot.js": "f492174da992128adc24b294c115cb3ddfe2c6667bf5210be195067ac9739b45",
+        "static/micro-controller.js": "8c9852ff7ed42c9ac6aa5b1afa74b12544bc13cd7c000156b386942293684c92",
+        "static/micro-hermes.js": "542b7ff25c3a438814810c5e9b2fa8d70e4c155be331342db99f7d02ac78bb8c"
+      }
+    }
+  }
+}

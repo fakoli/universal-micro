@@ -67,5 +67,24 @@ const vm = require('node:vm');
   await resolveHermes().dictate();
   assert.equal(recordings, 1, 'Raw audio must not enter the native auto-send recording path');
   assert.ok(nativeNotices[0].includes('dictation'));
-  console.log('Web controller: action dispatch, focus/modal/IME/recording guards and duplicate/error handling passed.');
+  let resolvePi, duplicates = false, busy = false;
+  const piCalls = [];
+  const piComposer = {getClientRects: () => [1], focus: () => piCalls.push('focus')};
+  const piButtons = Object.fromEntries(['dictate', 'send', 'stop'].map(action => [action, {
+    disabled: false, getClientRects: () => [1], click: () => piCalls.push(action),
+    getAttribute: () => busy ? 'transcribing' : 'idle',
+  }]));
+  vm.runInNewContext(fs.readFileSync('integrations/pi.js', 'utf8'), {
+    window: {AnvilMicro: {install: (_, resolve) => { resolvePi = resolve; }},
+      dispatchEvent: event => { assert.equal(event.key, 'n'); assert.ok(event.ctrlKey && event.altKey); piCalls.push('new'); }},
+    KeyboardEvent: class { constructor(type, options) { Object.assign(this, options); } },
+    document: {querySelectorAll: selector => selector === '[data-micro-composer]' ?
+      (duplicates ? [piComposer, piComposer] : [piComposer]) : [piButtons[selector.match(/="(\w+)"/)[1]]]},
+  });
+  for (const action of ['dictate', 'send', 'stop', 'new']) resolvePi()[action]();
+  assert.deepEqual(piCalls, ['focus', 'dictate', 'send', 'stop', 'new']);
+  busy = true; assert.equal(resolvePi().recording, true);
+  piButtons.send.disabled = true; assert.equal(resolvePi().send, undefined);
+  duplicates = true; assert.equal(resolvePi(), null);
+  console.log('Web controller: both adapters, focus/modal/IME/recording/raw-audio and duplicate/error guards passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

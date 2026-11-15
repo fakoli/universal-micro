@@ -1,0 +1,419 @@
+--- /dev/null
++++ b/hooks/useVoiceInput.ts
+@@ -0,0 +1,177 @@
++"use client";
++
++import { useCallback, useEffect, useRef, useState } from "react";
++import { blobToWav16kMono } from "@/lib/audio-wav";
++
++export type VoiceInputState = "idle" | "requesting" | "recording" | "transcribing" | "error";
++
++/** Releases shorter than this are treated as accidental taps, not dictation. */
++const MIN_RECORDING_MS = 250;
++/** Hard cap on a single hold; the hook stops recording on its own past this. */
++const MAX_RECORDING_MS = 5 * 60 * 1000;
++/** How long the error state (and its banner) stays visible before resetting. */
++const ERROR_RESET_MS = 6000;
++/** Recordings smaller than this cannot contain usable speech. */
++const MIN_AUDIO_BYTES = 512;
++
++function pickRecorderMimeType(): string | undefined {
++  if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) return undefined;
++  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
++  return candidates.find((type) => MediaRecorder.isTypeSupported(type));
++}
++
++/**
++ * Push-to-talk dictation for the chat composer.
++ *
++ * `start()` requests the microphone and begins recording; `stop()` ends the
++ * recording, converts it to 16 kHz mono WAV in the browser and POSTs it to
++ * /api/stt. The recognized text is delivered through `onTranscript`. No
++ * streaming partials — the transcript arrives once, after release.
++ */
++export function useVoiceInput(onTranscript: (text: string) => void) {
++  const [state, setState] = useState<VoiceInputState>("idle");
++  const [error, setError] = useState<string | null>(null);
++  const [supported, setSupported] = useState(false);
++
++  const stateRef = useRef(state);
++  useEffect(() => { stateRef.current = state; }, [state]);
++
++  const onTranscriptRef = useRef(onTranscript);
++  useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
++
++  const mountedRef = useRef(true);
++  const recorderRef = useRef<MediaRecorder | null>(null);
++  const streamRef = useRef<MediaStream | null>(null);
++  const chunksRef = useRef<Blob[]>([]);
++  const startedAtRef = useRef(0);
++  const stopRequestedRef = useRef(false);
++  const cancelledRef = useRef(false);
++  /** True once the in-flight getUserMedia promise is being tracked for cleanup. */
++  const pendingStartRef = useRef(false);
++  const maxDurationTimerRef = useRef<number | null>(null);
++  const errorTimersRef = useRef<number[]>([]);
++
++  useEffect(() => {
++    mountedRef.current = true;
++    setSupported(typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia);
++    return () => {
++      mountedRef.current = false;
++      cancelledRef.current = true;
++      // A getUserMedia that resolves after unmount stops its own tracks via
++      // cancelledRef; pendingStartRef keeps the intent visible for debugging.
++      void pendingStartRef.current;
++      recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
++      streamRef.current?.getTracks().forEach((track) => track.stop());
++      if (maxDurationTimerRef.current !== null) window.clearTimeout(maxDurationTimerRef.current);
++      errorTimersRef.current.forEach((timer) => window.clearTimeout(timer));
++    };
++  }, []);
++
++  const reportError = useCallback((message: string) => {
++    if (!mountedRef.current) return;
++    setError(message);
++    setState("error");
++    const timer = window.setTimeout(() => {
++      errorTimersRef.current = errorTimersRef.current.filter((t) => t !== timer);
++      if (mountedRef.current) setState((current) => (current === "error" ? "idle" : current));
++    }, ERROR_RESET_MS);
++    errorTimersRef.current.push(timer);
++  }, []);
++
++  const transcribe = useCallback(async (blob: Blob) => {
++    setState("transcribing");
++    try {
++      const wav = await blobToWav16kMono(blob);
++      const response = await fetch("/api/stt", {
++        method: "POST",
++        body: wav,
++        headers: { "Content-Type": "audio/wav" },
++      });
++      if (!response.ok) {
++        const payload = await response.json().catch(() => null) as { error?: string } | null;
++        throw new Error(payload?.error || `Transcription failed (${response.status})`);
++      }
++      const payload = await response.json() as { text?: string };
++      const text = (payload.text ?? "").trim();
++      if (text) onTranscriptRef.current(text);
++      if (mountedRef.current) setState("idle");
++    } catch (err) {
++      reportError(err instanceof Error ? err.message : String(err));
++    }
++  }, [reportError]);
++
++  const start = useCallback(async () => {
++    if (stateRef.current !== "idle" && stateRef.current !== "error") return;
++    stopRequestedRef.current = false;
++    cancelledRef.current = false;
++    setState("requesting");
++    try {
++      pendingStartRef.current = true;
++      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
++      pendingStartRef.current = false;
++      if (cancelledRef.current) {
++        // Released or unmounted while the permission prompt / device open was
++        // in flight — the stream would otherwise keep running (mic LED on).
++        stream.getTracks().forEach((track) => track.stop());
++        if (mountedRef.current) setState("idle");
++        return;
++      }
++      streamRef.current = stream;
++      const mimeType = pickRecorderMimeType();
++      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
++      chunksRef.current = [];
++      recorder.ondataavailable = (event) => {
++        if (event.data.size > 0) chunksRef.current.push(event.data);
++      };
++      recorder.onstop = () => {
++        stream.getTracks().forEach((track) => track.stop());
++        streamRef.current = null;
++        if (maxDurationTimerRef.current !== null) {
++          window.clearTimeout(maxDurationTimerRef.current);
++          maxDurationTimerRef.current = null;
++        }
++        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
++        chunksRef.current = [];
++        recorderRef.current = null;
++        if (cancelledRef.current || !mountedRef.current) {
++          if (mountedRef.current) setState("idle");
++          return;
++        }
++        const elapsed = Date.now() - startedAtRef.current;
++        if (elapsed < MIN_RECORDING_MS || blob.size < MIN_AUDIO_BYTES) {
++          setState("idle");
++          return;
++        }
++        void transcribe(blob);
++      };
++      recorderRef.current = recorder;
++      startedAtRef.current = Date.now();
++      recorder.start();
++      if (stopRequestedRef.current) {
++        // Released before the recorder was ready — stop immediately; the
++        // short-elapsed guard in onstop discards the clip.
++        recorder.stop();
++      } else {
++        setState("recording");
++        maxDurationTimerRef.current = window.setTimeout(() => {
++          if (recorderRef.current?.state === "recording") recorderRef.current.stop();
++        }, MAX_RECORDING_MS);
++      }
++    } catch (err) {
++      streamRef.current?.getTracks().forEach((track) => track.stop());
++      streamRef.current = null;
++      reportError(err instanceof Error ? err.message : String(err));
++    }
++  }, [reportError, transcribe]);
++
++  const stop = useCallback(() => {
++    const recorder = recorderRef.current;
++    if (recorder && recorder.state === "recording") {
++      recorder.stop();
++      return;
++    }
++    if (stateRef.current === "requesting") stopRequestedRef.current = true;
++  }, []);
++
++  return { state, error, supported, start, stop, recording: state === "recording" };
++}
+--- /dev/null
++++ b/lib/audio-wav.ts
+@@ -0,0 +1,85 @@
++/** Browser audio conversion to bounded 16 kHz mono PCM16 WAV. */
++export const WAV_SAMPLE_RATE = 16_000;
++
++/** Default cap for dictated clips; prevents runaway uploads from a stuck hold. */
++export const MAX_DICTATION_SECONDS = 300;
++
++type MonoSampleSource = {
++  numberOfChannels: number;
++  getChannelData(channel: number): Float32Array;
++};
++
++/**
++ * Downmix an AudioBuffer (or anything shaped like one) to a single channel by
++ * averaging all channels sample-by-sample.
++ */
++export function audioBufferToMonoSamples(buffer: MonoSampleSource): Float32Array {
++  if (buffer.numberOfChannels === 1) return buffer.getChannelData(0);
++  const channels: Float32Array[] = [];
++  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
++    channels.push(buffer.getChannelData(channel));
++  }
++  const length = channels[0].length;
++  const mono = new Float32Array(length);
++  for (let i = 0; i < length; i += 1) {
++    let sum = 0;
++    for (const channel of channels) sum += channel[i];
++    mono[i] = sum / channels.length;
++  }
++  return mono;
++}
++
++/**
++ * Encode float samples (-1..1) as a mono 16-bit PCM WAV blob.
++ */
++export function encodeWavBlob(samples: Float32Array, sampleRate: number): Blob {
++  const dataBytes = samples.length * 2;
++  const buffer = new ArrayBuffer(44 + dataBytes);
++  const view = new DataView(buffer);
++
++  const writeAscii = (offset: number, text: string) => {
++    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
++  };
++
++  writeAscii(0, "RIFF");
++  view.setUint32(4, 36 + dataBytes, true);
++  writeAscii(8, "WAVE");
++  writeAscii(12, "fmt ");
++  view.setUint32(16, 16, true);          // fmt chunk size
++  view.setUint16(20, 1, true);           // PCM
++  view.setUint16(22, 1, true);           // mono
++  view.setUint32(24, sampleRate, true);
++  view.setUint32(28, sampleRate * 2, true); // byte rate
++  view.setUint16(32, 2, true);           // block align
++  view.setUint16(34, 16, true);          // bits per sample
++  writeAscii(36, "data");
++  view.setUint32(40, dataBytes, true);
++
++  let offset = 44;
++  for (let i = 0; i < samples.length; i += 1) {
++    const clamped = Math.max(-1, Math.min(1, samples[i]));
++    view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
++    offset += 2;
++  }
++
++  return new Blob([view], { type: "audio/wav" });
++}
++
++/**
++ * Decode any browser-recorded audio blob into a 16 kHz mono WAV blob.
++ * decodeAudioData resamples to the OfflineAudioContext's sample rate, so the
++ * OfflineAudioContext doubles as the resampler without touching the shared
++ * AudioContext used for notification tones.
++ */
++export async function blobToWav16kMono(
++  blob: Blob,
++  maxDurationSeconds: number = MAX_DICTATION_SECONDS,
++): Promise<Blob> {
++  const arrayBuffer = await blob.arrayBuffer();
++  const decodeContext = new OfflineAudioContext(1, 1, WAV_SAMPLE_RATE);
++  const decoded = await decodeContext.decodeAudioData(arrayBuffer);
++  const samples = audioBufferToMonoSamples(decoded);
++  const maxSamples = WAV_SAMPLE_RATE * Math.max(0, maxDurationSeconds);
++  const trimmed = samples.length > maxSamples ? samples.subarray(0, maxSamples) : samples;
++  return encodeWavBlob(trimmed, WAV_SAMPLE_RATE);
++}
+--- /dev/null
++++ b/app/api/stt/route.ts
+@@ -0,0 +1,110 @@
++import { NextResponse } from "next/server";
++
++export const dynamic = "force-dynamic";
++
++// OpenAI-compatible speech-to-text upstream, configured by the operator.
++// Base URL is enough — the transcriptions path is appended when missing.
++const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
++const UPSTREAM_TIMEOUT_MS = 120_000;
++
++function sttTranscriptionUrl(): string | null {
++  const base = process.env.PI_WEB_STT_URL?.trim();
++  if (!base) return null;
++  const trimmed = base.replace(/\/+$/, "");
++  return /audio\/transcriptions$/.test(trimmed) ? trimmed : `${trimmed}/v1/audio/transcriptions`;
++}
++
++// GET /api/stt — feature probe so the client can hide the mic button when no
++// STT server is configured.
++export async function GET() {
++  return NextResponse.json({ enabled: sttTranscriptionUrl() !== null });
++}
++
++/** Reads the request body with a hard byte cap, bounding chunked bodies too. */
++async function readBodyWithinLimit(request: Request, maxBytes: number): Promise<ArrayBuffer> {
++  // Per RFC 9112 the declared length is meaningless for chunked bodies; the
++  // streaming reader below is the only reliable cap in that case.
++  const isChunked = (request.headers.get("transfer-encoding") ?? "").toLowerCase().includes("chunked");
++  if (!isChunked) {
++    const declared = Number(request.headers.get("content-length") ?? "");
++    if (Number.isSafeInteger(declared) && declared > maxBytes) {
++      throw new Error("declared-too-large");
++    }
++  }
++  const reader = request.body?.getReader();
++  if (!reader) return new ArrayBuffer(0);
++
++  const chunks: Uint8Array[] = [];
++  let size = 0;
++  while (true) {
++    const { done, value } = await reader.read();
++    if (done) break;
++    size += value.byteLength;
++    if (size > maxBytes) {
++      await reader.cancel().catch(() => {});
++      throw new Error("too-large");
++    }
++    chunks.push(value);
++  }
++  const buffer = new ArrayBuffer(size);
++  const body = new Uint8Array(buffer);
++  let offset = 0;
++  for (const chunk of chunks) {
++    body.set(chunk, offset);
++    offset += chunk.byteLength;
++  }
++  return buffer;
++}
++
++// POST /api/stt — proxies a WAV recording to the configured STT server and
++// returns { text }. Keeps the upstream URL server-side so it never reaches
++// the browser.
++export async function POST(request: Request) {
++  const upstreamUrl = sttTranscriptionUrl();
++  if (!upstreamUrl) {
++    return NextResponse.json(
++      { error: "Speech-to-text is not configured (set PI_WEB_STT_URL)" },
++      { status: 501 },
++    );
++  }
++
++  let audio: ArrayBuffer;
++  try {
++    audio = await readBodyWithinLimit(request, MAX_AUDIO_BYTES);
++  } catch {
++    return NextResponse.json({ error: "Audio recording too large" }, { status: 413 });
++  }
++  if (audio.byteLength === 0) {
++    return NextResponse.json({ error: "Empty audio recording" }, { status: 400 });
++  }
++
++  const contentType = request.headers.get("content-type")?.split(";")[0];
++  if (contentType !== "audio/wav") return NextResponse.json({ error: "Expected audio/wav" }, { status: 415 });
++  const form = new FormData();
++  form.append("file", new Blob([audio], { type: contentType }), "audio.wav");
++  form.append("response_format", "json");
++
++  try {
++    const upstream = await fetch(upstreamUrl, {
++      method: "POST",
++      body: form,
++      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
++    });
++    if (!upstream.ok) {
++      return NextResponse.json(
++        { error: `STT server error (${upstream.status})` },
++        { status: 502 },
++      );
++    }
++    const payload = await upstream.json().catch(() => null) as { text?: unknown } | null;
++    if (!payload || typeof payload.text !== "string") {
++      return NextResponse.json({ error: "Unexpected STT server response" }, { status: 502 });
++    }
++    return NextResponse.json({ text: payload.text });
++  } catch {
++    return NextResponse.json(
++      { error: "Could not reach the configured speech server" },
++      { status: 502 },
++    );
++  }
++}
+--- a/components/ChatInput.tsx
++++ b/components/ChatInput.tsx
+@@ -1,5 +1,6 @@
+ "use client";
+ 
++import { useVoiceInput } from "@/hooks/useVoiceInput";
+ import React, { memo, useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
+ import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
+ import type { SkillsResponse } from "@/lib/api-types";
+@@ -744,6 +745,10 @@
+   const controlSize = isMobile ? 44 : 32;
+   const enterSendMode = useEnterSendMode();
+   const [value, setValue] = useState(() => (draftKey ? getDraft(draftKey)?.value ?? "" : ""));
++  const voice = useVoiceInput((text) => {
++    setValue((current) => current + (current && !/\s$/.test(current) ? " " : "") + text);
++    textareaRef.current?.focus();
++  });
+   const [toolDropdownOpen, setToolDropdownOpen] = useState(false);
+   const [thinkingDropdownOpen, setThinkingDropdownOpen] = useState(false);
+   const [controlsMenuOpen, setControlsMenuOpen] = useState(false);
+@@ -2430,6 +2435,17 @@
+               transition: "border-color 0.15s, background 0.15s, box-shadow 0.15s",
+             } as React.CSSProperties}
+           >
++          {!compact && voice.supported && <button
++            type="button"
++            onClick={() => { if (voice.recording || voice.state === "requesting") voice.stop(); else void voice.start(); }}
++            disabled={voice.state === "transcribing"}
++            aria-label={voice.recording ? "Finish dictation" : "Dictate"}
++            aria-pressed={voice.recording}
++            data-micro-action="dictate"
++            data-micro-state={voice.state}
++            style={{minWidth: 38, minHeight: 38, border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", background: "var(--bg-panel)"}}
++          >{voice.state === "transcribing" ? "Transcribing…" : voice.recording ? "Finish" : "Dictate"}</button>}
++          {!compact && voice.error && <span role="alert">{voice.error}</span>}
+           <textarea
+             ref={textareaRef}
+             className="chat-input-textarea"

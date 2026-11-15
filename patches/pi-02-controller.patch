@@ -1,0 +1,116 @@
+--- a/components/ChatInput.tsx
++++ b/components/ChatInput.tsx
+@@ -2448,6 +2448,7 @@
+           {!compact && voice.error && <span role="alert">{voice.error}</span>}
+           <textarea
+             ref={textareaRef}
++            data-micro-composer={compact ? undefined : ""}
+             className="chat-input-textarea"
+             aria-label={compact ? t("chat.askInSideChat") : undefined}
+             value={value}
+@@ -2578,6 +2579,7 @@
+           ) : (
+             <button
+               onClick={handleSend}
++              data-micro-action={compact ? undefined : "send"}
+               disabled={!value.trim() && !attachedImages.length}
+               title={t("chat.send")}
+               aria-label={t("chat.send")}
+@@ -2975,6 +2977,7 @@
+             {isStreaming && (
+               <button
+                 onClick={onAbort}
++                data-micro-action={compact ? undefined : "stop"}
+                  title={t("chat.stopAgent")}
+                 style={{
+                   display: "flex", alignItems: "center", gap: 6,
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -74,6 +74,8 @@
+       <body translate="no" className="notranslate" suppressHydrationWarning>
+         {children}
+         <PwaRegistration />
++        <script src="/micro-controller.js" defer />
++        <script src="/micro-pi.js" defer />
+       </body>
+     </html>
+   );
+--- /dev/null
++++ b/public/micro-controller.js
+@@ -0,0 +1,52 @@
++/* Shared keyboard contract; adapters resolve current native controls on every press. */
++(() => {
++  const bindings = {
++    hermes: {d: 'dictate', enter: 'send', x: 'stop', n: 'new'},
++    pi: {r: 'dictate', s: 'send', t: 'stop', c: 'new'},
++  };
++  window.AnvilMicro = {
++    install(harness, resolve, notice = text => {
++      let output = document.getElementById('anvil-micro-status');
++      if (!output) {
++        output = document.createElement('output');
++        output.id = 'anvil-micro-status';
++        output.setAttribute('role', 'status');
++        output.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483647;background:#222;color:white;padding:10px 14px;border-radius:8px;font:14px system-ui;max-width:420px;pointer-events:none';
++        document.body.append(output);
++      }
++      output.textContent = text;
++      clearTimeout(output.microTimer);
++      output.microTimer = setTimeout(() => output.remove(), 3500);
++    }) {
++      const keys = bindings[harness];
++      if (!keys) throw new Error('Unknown controller harness');
++      const pending = new Set();
++      window.addEventListener('keydown', async event => {
++        if (!event.ctrlKey || !event.altKey || !event.shiftKey || event.metaKey) return;
++        const action = keys[String(event.key).toLowerCase()];
++        if (!action || event.repeat || event.isComposing || event.keyCode === 229) return;
++        const doc = window.document;
++        if (doc.hidden || !doc.hasFocus()) return;
++        event.preventDefault();
++        event.stopPropagation();
++        const dialogs = doc.querySelectorAll('[aria-modal="true"],dialog[open],.modal.open,.modal-overlay.open');
++        if ([...dialogs].some(element => element.getClientRects().length)) return;
++        const controls = resolve();
++        if (!controls) return notice('Open a chat composer first.');
++        if ((controls.recording || pending.has('dictate')) && (action === 'send' || action === 'new')) {
++          return notice('Finish dictation before sending or opening a new chat.');
++        }
++        if (pending.has(action)) return;
++        if (typeof controls[action] !== 'function') return notice('That action is not available right now.');
++        pending.add(action);
++        try {
++          await controls[action]();
++        } catch {
++          notice('The app could not complete that action.');
++        } finally {
++          pending.delete(action);
++        }
++      }, true);
++    },
++  };
++})();
+--- /dev/null
++++ b/public/micro-pi.js
+@@ -0,0 +1,21 @@
++/* Loaded after web-controller.js; data attributes mark the existing native buttons. */
++window.AnvilMicro.install('pi', () => {
++  const visible = selector => [...document.querySelectorAll(selector)].filter(element => element.getClientRects().length);
++  const composers = visible('[data-micro-composer]');
++  if (composers.length !== 1) return null;
++  const composer = composers[0];
++  const button = action => {
++    const matches = visible(`[data-micro-action="${action}"]`);
++    return matches.length === 1 ? matches[0] : null;
++  };
++  const dictate = button('dictate'), send = button('send'), stop = button('stop');
++  return {
++    recording: ['requesting', 'recording', 'transcribing'].includes(dictate?.getAttribute('data-micro-state')),
++    dictate: dictate && !dictate.disabled ? () => { composer.focus(); dictate.click(); } : undefined,
++    send: send && !send.disabled ? () => send.click() : undefined,
++    stop: stop && !stop.disabled ? () => stop.click() : undefined,
++    new: () => window.dispatchEvent(new KeyboardEvent('keydown', {
++      key: 'n', ctrlKey: true, altKey: true, bubbles: true,
++    })),
++  };
++});

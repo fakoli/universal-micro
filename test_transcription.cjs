@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 
 (async () => {
-  const boot = fs.readFileSync('.local/staged/hermes/static/boot.js', 'utf8');
+  const boot = fs.readFileSync(require('node:path').join(process.argv[2] || '.cache/hermes', 'static/boot.js'), 'utf8');
   const start = boot.indexOf('  async function _transcribeBlob(');
   const end = boot.indexOf('  function _stopTracks', start);
   assert.ok(start >= 0 && end > start);
