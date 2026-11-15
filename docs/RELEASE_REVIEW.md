@@ -33,7 +33,7 @@ One independent reviewer inspected all 35 public files, six local history trees,
 
 The candidate now checks the active capture mode and snapshots the requested mode before awaiting permission. Regression checks use the actual pinned `_startMicCapture`, `_stopMic`, `_toggleMicCapture` and `_sendRawAudio` bodies and the shipped adapter. Both failures were observed before their respective fixes, then the complete suite passed. There was no second review pass. With subsequent owner approval, the safety change was also applied to the existing modified Hermes client; its actual-source safety regression passed before activation.
 
-**Pi review minor resolved:** Error expiry and a new recording attempt now clear the old banner. Older error timers are cancelled so they cannot clear a newer error early. The actual hook check reproduced the stale banner, then passed expiry, retry, timer ownership and successful dictation recovery. Both the public source candidate and the owner's existing modified Pi client were rebuilt successfully; the existing client's fix was activated with owner approval. This does not establish physical acceptance of the separate public Pi 0.17.0 base.
+**Pi review minor resolved:** Error expiry and a new recording attempt now clear the old banner. Older error timers are cancelled so they cannot clear a newer error early. The actual hook check reproduced the stale banner, then passed expiry, retry, timer ownership and successful dictation recovery. Both the public source candidate and the owner's existing modified Pi client were rebuilt successfully; the existing client's fix was activated with owner approval. The owner then confirmed physical selection, dictation, Send, Stop and New chat passed in both installed browser clients after the fixes. This does not establish physical acceptance of the separate public Pi 0.17.0 base.
 
 Review boundaries and decisions:
 
@@ -42,7 +42,7 @@ Review boundaries and decisions:
 3. Preservation relies on the executor's original file/device-map byte hashes and registry comparison; the reviewer examined that evidence without repeating private-state collection. Cost: it does not prove a new physical end-to-end run.
 4. Review covers shipped changes and relevant client paths, not a full security audit of upstream applications/dependencies. Cost: upstream vulnerabilities may remain outside these checks.
 
-The original prototype passed owner-operated physical selectors/actions and native Codex fallback. This candidate retains its own stricter identity/startup behavior and retargets Pi to a public base; that original hardware result is not acceptance evidence for these changes.
+After activation of the Hermes safety and Pi error-recovery fixes, the owner repeated the physical checks on the current installed setup: Hermes, Pi and Codex selection, dictation, Send, Stop and New chat all passed. The native Layer 1 Codex fallback also passed, and the owner was instructed to leave the pad on that layer. These are owner-reported results for the installed modified clients and existing router. The source candidate retains stricter identity/startup behavior and a separate public Pi 0.17.0 base; those still require the documented clean-machine acceptance.
 
 ## Remaining gates
 
