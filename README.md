@@ -52,7 +52,9 @@ Other keys, encoders and joystick positions in this added layer are unassigned. 
 
 Open **Apps & shortcuts** in the router. Add an app, select a running window to fill its executable and title, then set its selector and native shortcuts. **Duplicate window** creates another profile for the same application; choose a distinct title rule for each. **Action input keys** adds or reassigns actions such as `steer`. Blank app shortcuts disable that action for that app.
 
-Input keys are F13–F24, with no duplicates. Assign the same F-key to an unused button in your added Input layer. Apps without a selector remain available through their **Focus** button. Apply saves to `%LOCALAPPDATA%\UniversalMicro\profiles.json` and requires selecting the app again. Cancel leaves active settings intact. See [profile details and recovery](docs/PROFILES.md).
+Input keys are F13–F24, with no duplicates. Assign the same F-key to an unused button in your added Input layer. Apps without a selector remain available through their **Focus** button. Apply saves to `%LOCALAPPDATA%\UniversalMicro\profiles.json` and requires selecting the app again. Cancel leaves active settings intact.
+
+Follow the step-by-step guide to [add an app](docs/PROFILES.md#add-another-app), [control a second window](docs/PROFILES.md#add-a-second-window-of-the-same-app), or [add/change an action hotkey](docs/PROFILES.md#add-or-change-an-action-hotkey). The guide includes Input button assignment, examples, title-matching limits and recovery.
 
 ### Upgrade an existing seven-key setup
 
