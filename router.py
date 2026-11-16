@@ -8,53 +8,44 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from profiles import (DEFAULT_CONFIG, PROFILES_PATH, STATE_DIR, MODIFIERS, hotkeys,
+                      key_code, load_profiles, save_profiles, shortcut_keys, validate_config)
 
 
-HARNESSES = ("codex", "hermes", "pi")
-ACTIONS = ("dictate", "send", "stop", "new")
-HERMES_KEYS = {
-    "dictate": ("CTRL", "ALT", "SHIFT", "D"),
-    "send": ("CTRL", "ALT", "SHIFT", "ENTER"),
-    "stop": ("CTRL", "ALT", "SHIFT", "X"),
-    "new": ("CTRL", "ALT", "SHIFT", "N"),
-}
-WEB_KEYS = {
-    "hermes": HERMES_KEYS,
-    "pi": {action: ("CTRL", "ALT", "SHIFT", key) for action, key in
-           zip(ACTIONS, ("R", "S", "T", "C"))},
-}
-CODEX_KEYS = {
-    "dictate": ("CTRL", "SHIFT", "D"),
-    "send": ("CTRL", "ENTER"),
-    "stop": ("ESC",),
-    "new": ("CTRL", "N"),
-}
-HOTKEYS = {**dict(zip(range(13, 16), HARNESSES)), **dict(zip(range(19, 23), ACTIONS))}
-PROCESSES = {"codex": ("chatgpt.exe", "codex.exe"),
-             "hermes": ("chrome.exe", "msedge.exe"), "pi": ("chrome.exe", "msedge.exe")}
-BINDINGS_PATH = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "UniversalMicro/bindings.json"
+HARNESSES = tuple(DEFAULT_CONFIG['apps'])
+ACTIONS = tuple(DEFAULT_CONFIG['hotkeys'])
+CODEX_KEYS = {a: shortcut_keys(k) for a, k in DEFAULT_CONFIG['apps']['codex']['shortcuts'].items()}
+WEB_KEYS = {h: {a: shortcut_keys(k) for a, k in DEFAULT_CONFIG['apps'][h]['shortcuts'].items()} for h in ('hermes','pi')}
+HOTKEYS = hotkeys(DEFAULT_CONFIG)
+BINDINGS_PATH = STATE_DIR / 'bindings.json'
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_VALUE = "UniversalMicroRouter"
 
 
-def matches_window(harness, window):
-    _, process, title = window[:3]
-    if process not in PROCESSES.get(harness, ()):
+def matches_window(harness, window, config=None):
+    app = (config or DEFAULT_CONFIG)['apps'].get(harness)
+    if not app:
         return False
-    if harness == "codex":
-        return len(window) == 4 and window[3] == "OpenAI.Codex_2p2nqsd0c76g0"
-    caption = title.casefold().removesuffix(" - google chrome").removesuffix(" - microsoft edge")
-    if harness == "hermes":
-        return caption == "hermes" or caption.endswith(" — hermes")
-    return caption == "pi web" or caption.endswith(" - pi web")
+    _, process, title = window[:3]
+    if process not in app['processes']:
+        return False
+    if app['package'] and (len(window) != 4 or window[3] != app['package']):
+        return False
+    caption, pattern = (s.casefold().removesuffix(" - google chrome").removesuffix(" - microsoft edge")
+                        for s in (title, app['title']))
+    mode = app['title_mode']
+    return (mode == 'any' or mode == 'contains' and pattern in caption or
+            mode == 'exact' and caption == pattern or mode == 'suffix' and caption.endswith(pattern) or
+            mode == 'app' and (caption == pattern or caption.endswith(' — ' + pattern) or caption.endswith(' - ' + pattern)))
 
 
-def load_bindings(path=BINDINGS_PATH):
+def load_bindings(path=BINDINGS_PATH, config=None):
+    apps = (config or DEFAULT_CONFIG)['apps']
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return {}
-    if not isinstance(data, dict) or any(h not in HARNESSES or p not in PROCESSES[h] for h, p in data.items()):
+    if not isinstance(data, dict) or any(h not in apps or p not in apps[h]['processes'] for h, p in data.items()):
         raise ValueError("Saved bindings are invalid; choose harness windows again")
     return data
 
@@ -105,14 +96,15 @@ def set_startup(enabled):
 
 
 class Router:
-    def __init__(self, desktop, preferences=None):
+    def __init__(self, desktop, preferences=None, config=None):
         self.desktop = desktop
+        self.config = validate_config(config if config is not None else DEFAULT_CONFIG)
         self.targets = {}
         self.selected = None
         self.preferences = dict(preferences or {})
 
     def bind(self, harness, window):
-        if not matches_window(harness, window):
+        if not matches_window(harness, window, self.config):
             raise ValueError("Choose a window showing that harness")
         hwnd, process, _ = window[:3]
         identity = self.desktop.identity(hwnd)
@@ -127,8 +119,8 @@ class Router:
 
     def reconnect(self):
         available = self.desktop.windows()
-        for harness in HARNESSES:
-            candidates = [x for x in available if matches_window(harness, x)
+        for harness in self.config['apps']:
+            candidates = [x for x in available if matches_window(harness, x, self.config)
                           and x[1] == self.preferences.get(harness, x[1])]
             current = self.targets.get(harness)
             if current and any(x[0] == current[0] for x in candidates) and self.desktop.identity(current[0]) == current[1]:
@@ -160,14 +152,17 @@ class Router:
 
     def action(self, action):
         self.reconnect()
-        if action not in ACTIONS or self.selected not in HARNESSES:
-            raise ValueError("Select a harness with F13, F14 or F15 first")
+        if action not in self.config['hotkeys'] or self.selected not in self.config['apps']:
+            raise ValueError("Select an app with its selector key or Focus button first")
         hwnd, identity = self.target(self.selected)
         if self.desktop.foreground() != hwnd:
             raise ValueError("Focus changed; select the harness again")
         if self.desktop.modifiers_down():
             raise ValueError("Release Ctrl, Alt, Shift and Windows keys first")
-        keys = CODEX_KEYS[action] if self.selected == "codex" else WEB_KEYS[self.selected][action]
+        shortcut = self.config['apps'][self.selected]['shortcuts'].get(action, '')
+        if not shortcut:
+            raise ValueError('That action has no shortcut configured for this app')
+        keys = shortcut_keys(shortcut)
         self.desktop.send(keys, hwnd, identity)
 
 
@@ -223,6 +218,7 @@ class Win32:
         self.thread_id = None
         self.failure = None
         self.instance = None
+        self.hotkeys = dict(HOTKEYS)
 
     def claim_instance(self):
         ctypes.set_last_error(0)
@@ -291,7 +287,7 @@ class Win32:
             title = ctypes.create_unicode_buffer(1024)
             self.user.GetWindowTextW(hwnd, title, len(title))
             process = self.process(hwnd) if title.value else None
-            if process and any(process[1] in names for names in PROCESSES.values()):
+            if process:
                 result.append((hwnd, process[1], title.value, process[2]))
             return True
 
@@ -317,8 +313,7 @@ class Win32:
         class Input(ctypes.Structure):
             _fields_ = [("type", w.DWORD), ("payload", Payload)]
 
-        codes = {"CTRL": 0x11, "ALT": 0x12, "SHIFT": 0x10, "ENTER": 0x0D, "ESC": 0x1B}
-        values = [codes[key] if key in codes else ord(key) for key in keys]
+        values = [key_code(key) for key in keys]
         events = [Input(1, Payload(keyboard=Keyboard(vk=key))) for key in values]
         releases = [Input(1, Payload(keyboard=Keyboard(vk=key, flags=2))) for key in reversed(values)]
         batch = (Input * (len(events) + len(releases)))(*events, *releases)
@@ -327,7 +322,10 @@ class Win32:
             self.user.SendInput(len(release_batch), release_batch, ctypes.sizeof(Input))
             raise OSError("Windows blocked input; keep both apps at the same privilege level")
 
-    def register(self):
+    def register(self, mapping=None):
+        self.hotkeys = dict(HOTKEYS if mapping is None else mapping)
+        self.failure = None
+        self.events = queue.Queue(maxsize=64)
         ready = threading.Event()
 
         def listen():
@@ -336,7 +334,7 @@ class Win32:
             try:
                 # Tk consumes thread messages; this thread owns registration and delivery.
                 self.user.PeekMessageW(ctypes.byref(message), None, 0, 0, 0)
-                for number in HOTKEYS:
+                for number in self.hotkeys:
                     if not self.user.RegisterHotKey(None, number, 0x4000, 0x70 + number - 1):
                         raise OSError(f"F{number} is already in use; close the other router or remapper")
                     self.registered.append(number)
@@ -347,7 +345,7 @@ class Win32:
                         break
                     if result == -1:
                         raise OSError("Windows hotkey delivery stopped; restart the router")
-                    if message.message == 0x0312 and int(message.wParam) in HOTKEYS:
+                    if message.message == 0x0312 and int(message.wParam) in self.hotkeys:
                         try:
                             self.events.put_nowait(int(message.wParam))
                         except queue.Full:
@@ -363,10 +361,10 @@ class Win32:
         self.worker = threading.Thread(target=listen, name="Micro hotkeys", daemon=True)
         self.worker.start()
         if not ready.wait(2):
-            self.close()
+            self.stop_hotkeys()
             raise OSError("Windows hotkey registration timed out")
         if self.failure:
-            self.close()
+            self.stop_hotkeys()
             raise OSError(self.failure)
 
     def pending(self):
@@ -378,18 +376,59 @@ class Win32:
             except queue.Empty:
                 return
 
-    def close(self):
+    def stop_hotkeys(self):
         if self.worker and self.worker.is_alive() and self.thread_id:
             self.user.PostThreadMessageW(self.thread_id, 0x0012, 0, 0)
-            self.worker.join(timeout=1)
+            self.worker.join(timeout=2)
+            if self.worker.is_alive():
+                raise OSError('Hotkey thread did not stop; configuration was not applied')
+        self.worker, self.thread_id = None, None
+
+    def replace_hotkeys(self, mapping):
+        previous = dict(self.hotkeys)
+        self.stop_hotkeys()
+        try:
+            self.register(mapping)
+        except OSError as error:
+            try:
+                self.register(previous)
+            except OSError as restore_error:
+                self.failure = f'{error}; previous keys could not be restored. Routing is paused'
+                raise OSError(self.failure) from restore_error
+            raise
+
+    def close(self):
+        self.stop_hotkeys()
         if self.instance:
             self.kernel.CloseHandle(self.instance)
             self.instance = None
 
 
+def reconfigure(router, candidate, path=PROFILES_PATH):
+    candidate = validate_config(candidate)
+    prefs = {h:p for h,p in router.preferences.items()
+             if h in candidate['apps'] and p in candidate['apps'][h]['processes']}
+    replacement = Router(router.desktop, prefs, candidate)
+    previous_keys = hotkeys(router.config)
+    router.desktop.replace_hotkeys(hotkeys(candidate))
+    try:
+        save_profiles(path, candidate)
+    except (OSError, ValueError):
+        try:
+            router.desktop.replace_hotkeys(previous_keys)
+        except OSError as error:
+            router.desktop.stop_hotkeys()
+            router.desktop.failure = 'Profiles could not be saved and keys could not be restored. Routing is paused'
+            raise OSError(router.desktop.failure) from error
+        raise
+    return replacement
+
+
 def main():
     import tkinter as tk
     from tkinter import ttk
+    from profiles import edit_profiles
+    config = load_profiles()
     desktop = Win32()
     if not desktop.claim_instance():
         try:
@@ -400,21 +439,39 @@ def main():
         return
     root = tk.Tk()
     root.title("Universal Micro")
-    root.geometry("780x385")
+    root.geometry("1040x540")
     rows = {}
+    editing = False
     try:
-        preferences = load_bindings()
-        initial_status = "Use a top key to select a harness. Missing windows reconnect automatically."
+        path = BINDINGS_PATH if BINDINGS_PATH.exists() else Path(__file__).resolve().parent / '.local/bindings.json'
+        preferences = load_bindings(path, config)
+        initial_status = "Select an app using its key or Focus. Missing windows reconnect automatically."
     except (OSError, ValueError) as error:
         preferences, initial_status = {}, str(error)
-    router = Router(desktop, preferences)
+    router = Router(desktop, preferences, config)
     saved = dict(preferences)
     status = tk.StringVar(value=initial_status)
-    ttk.Label(root, text="Universal Micro", font=("Segoe UI", 17)).pack(anchor="w", padx=18, pady=(16, 4))
-    ttk.Label(root, text="Reconnects automatically. Keep Hermes and Pi in dedicated browser windows.").pack(anchor="w", padx=18)
-    frame = ttk.Frame(root)
-    frame.pack(fill="x", padx=18, pady=12)
+    ttk.Label(root, text="Universal Micro", font=("Segoe UI", 17)).pack(anchor="w", padx=18, pady=(16,4))
+    ttk.Label(root, text="Add apps/windows and edit shortcuts in Apps & shortcuts. Keep browser apps in dedicated windows.").pack(anchor="w", padx=18)
+    holder = ttk.Frame(root)
+    holder.pack(fill='both', expand=True, padx=18, pady=12)
+    canvas = tk.Canvas(holder, highlightthickness=0, height=210)
+    scrollbar = ttk.Scrollbar(holder, orient='vertical', command=canvas.yview)
+    canvas.configure(yscrollcommand=scrollbar.set)
+    scrollbar.pack(side='right', fill='y')
+    canvas.pack(side='left', fill='both', expand=True)
+    frame = ttk.Frame(canvas)
+    frame_id = canvas.create_window((0,0), window=frame, anchor='nw')
+    frame.bind('<Configure>', lambda event: canvas.configure(scrollregion=canvas.bbox('all')))
+    canvas.bind('<Configure>', lambda event: canvas.itemconfigure(frame_id, width=event.width))
     frame.columnconfigure(1, weight=1)
+
+    def focus(harness):
+        try:
+            router.select(harness)
+            status.set(f"Selected: {config['apps'][harness]['name']}")
+        except (ValueError, OSError) as error:
+            status.set(str(error))
 
     def bind(harness):
         combo, candidates, label = rows[harness]
@@ -427,49 +484,77 @@ def main():
             saved.clear()
             saved.update(router.preferences)
             label.config(text="Connected")
-            status.set(f"{harness.title()} bound. Press its top key to focus it.")
+            status.set(f"{config['apps'][harness]['name']} bound. Select it before an action.")
         except (ValueError, OSError) as error:
             status.set(str(error))
 
-    for row, harness in enumerate(HARNESSES):
-        ttk.Label(frame, text=f"F{13 + row}  {harness.title()}", width=15).grid(row=row, column=0, sticky="w", pady=5)
-        combo = ttk.Combobox(frame, state="readonly", width=68)
-        combo.grid(row=row, column=1, sticky="ew", padx=8)
-        ttk.Button(frame, text="Bind", command=lambda h=harness: bind(h)).grid(row=row, column=2)
-        label = ttk.Label(frame, text="Unbound", width=10)
-        label.grid(row=row, column=3, padx=8)
-        rows[harness] = (combo, [], label)
+    def build_rows():
+        for child in frame.winfo_children():
+            child.destroy()
+        rows.clear()
+        for row, (harness, app) in enumerate(config['apps'].items()):
+            ttk.Label(frame, text=f"{app['selector'] or '—'}  {app['name']}", width=20).grid(row=row, column=0, sticky='w', pady=5)
+            combo = ttk.Combobox(frame, state='readonly', width=58)
+            combo.grid(row=row, column=1, sticky='ew', padx=8)
+            ttk.Button(frame, text='Bind', command=lambda h=harness: bind(h)).grid(row=row, column=2)
+            ttk.Button(frame, text='Focus', command=lambda h=harness: focus(h)).grid(row=row, column=3, padx=4)
+            label = ttk.Label(frame, text='Waiting', width=10)
+            label.grid(row=row, column=4, padx=4)
+            rows[harness] = (combo, [], label)
 
     def refresh():
-        previous_selection = router.selected
+        previous = router.selected
         available = router.reconnect()
-        if previous_selection and router.selected is None:
-            status.set(f"{previous_selection.title()} window changed. Press its top key to select it again.")
+        if previous and router.selected is None:
+            status.set("Window changed. Select the app again before an action.")
         for harness, (combo, candidates, label) in rows.items():
             old = candidates[combo.current()][0] if 0 <= combo.current() < len(candidates) else None
-            candidates[:] = [x for x in available if matches_window(harness, x)]
-            combo["values"] = [f"{x[2]}  [{x[0]}]" for x in candidates]
+            candidates[:] = [x for x in available if matches_window(harness, x, config)]
+            combo['values'] = [f"{x[2]}  [{x[0]}]" for x in candidates]
             target = router.targets.get(harness)
             choice = old if any(x[0] == old for x in candidates) else target[0] if target else None
             index = next((i for i, x in enumerate(candidates) if x[0] == choice), None)
-            combo.current(index) if index is not None else combo.set("")
-            label.config(text="Connected" if target else "Choose" if len(candidates) > 1 else "Waiting")
+            combo.current(index) if index is not None else combo.set('')
+            label.config(text='Connected' if target else 'Choose' if candidates else 'Waiting')
         if saved != router.preferences:
             try:
                 save_bindings(BINDINGS_PATH, router.preferences)
                 saved.clear()
                 saved.update(router.preferences)
-            except OSError as error:
-                status.set(f"Could not save bindings: {error}")
+            except OSError:
+                status.set("Could not save bindings; check the user settings folder permissions.")
 
     def watch_windows():
-        refresh()
+        if not editing:
+            refresh()
         root.after(1500, watch_windows)
 
-    ttk.Button(root, text="Refresh windows", command=refresh).pack(anchor="w", padx=18)
-    ttk.Label(root, text="F19 Dictate   F20 Send   F21 Stop   F22 New chat").pack(anchor="w", padx=18, pady=(12, 4))
-    ttk.Label(root, textvariable=status, wraplength=740).pack(anchor="w", padx=18)
-    ttk.Label(root, text="Fallback: use the Micro touch sensor to return to native Layer 1.").pack(anchor="w", padx=18, pady=(8, 0))
+    def apply_config(candidate):
+        nonlocal config, router
+        router = reconfigure(router, candidate)
+        config = router.config
+        saved.clear()
+        build_rows()
+        refresh()
+        action_summary.set('   '.join(f'{key or "—"} {name}' for name,key in config['hotkeys'].items()))
+        status.set("Profiles saved. Select an app again before an action.")
+
+    def configure():
+        nonlocal editing
+        editing = True
+        try:
+            edit_profiles(root, config, apply_config, desktop.windows)
+        finally:
+            editing = False
+
+    buttons = ttk.Frame(root)
+    buttons.pack(fill='x', padx=18)
+    ttk.Button(buttons, text="Apps & shortcuts…", command=configure).pack(side='left')
+    ttk.Button(buttons, text="Refresh windows", command=refresh).pack(side='left', padx=8)
+    action_summary = tk.StringVar(value='   '.join(f'{key or "—"} {name}' for name,key in config['hotkeys'].items()))
+    ttk.Label(root, textvariable=action_summary, wraplength=980).pack(anchor='w', padx=18, pady=(12,4))
+    ttk.Label(root, textvariable=status, wraplength=980).pack(anchor='w', padx=18)
+    ttk.Label(root, text="Fallback: use the Micro touch sensor to return to native Layer 1.").pack(anchor='w', padx=18, pady=8)
     startup = tk.BooleanVar(value=startup_enabled())
 
     def toggle_startup():
@@ -480,27 +565,29 @@ def main():
             startup.set(startup_enabled())
             status.set(str(error))
 
-    ttk.Checkbutton(root, text="Start at Windows sign-in", variable=startup, command=toggle_startup).pack(anchor="w", padx=18, pady=(12, 0))
+    ttk.Checkbutton(root, text="Start at Windows sign-in", variable=startup, command=toggle_startup).pack(anchor='w', padx=18, pady=(4,12))
 
     def poll():
         try:
             pending = list(desktop.pending())
+            if not editing:
+                for number in pending:
+                    binding = hotkeys(config).get(number)
+                    if not binding:
+                        continue
+                    kind, name = binding
+                    try:
+                        if kind == 'select':
+                            focus(name)
+                        else:
+                            router.action(name)
+                            status.set(f"{config['apps'][router.selected]['name']}: {name} shortcut sent")
+                    except (ValueError, OSError) as error:
+                        status.set(str(error))
+                        root.bell()
         except OSError as error:
-            status.set(str(error))
-            root.bell()
-            return
-        for number in pending:
-            try:
-                name = HOTKEYS[number]
-                if name in HARNESSES:
-                    router.select(name)
-                    status.set(f"Selected: {name.title()}")
-                else:
-                    router.action(name)
-                    status.set(f"{router.selected.title()}: {name} shortcut sent")
-            except (ValueError, OSError) as error:
-                status.set(str(error))
-                root.bell()
+            if not editing:
+                status.set(f"{error}. Open Apps & shortcuts to choose another input key.")
         root.after(30, poll)
 
     def close():
@@ -508,11 +595,17 @@ def main():
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", close)
+    build_rows()
     try:
-        desktop.register()
+        ready = True
+        try:
+            desktop.register(hotkeys(config))
+        except OSError as error:
+            ready = False
+            status.set(f"{error}. Open Apps & shortcuts to choose another input key.")
         watch_windows()
         poll()
-        if "--background" in sys.argv:
+        if "--background" in sys.argv and ready:
             root.iconify()
         root.mainloop()
     finally:

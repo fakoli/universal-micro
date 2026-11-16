@@ -15,6 +15,7 @@ adapters.json
 check_release.py
 docs/ACCEPTANCE.md
 docs/INTEGRATIONS.md
+docs/PROFILES.md
 docs/RELEASE_REVIEW.md
 docs/TROUBLESHOOTING.md
 input/Universal-Micro-layer.json
@@ -24,10 +25,12 @@ patches/hermes-01-controller.patch
 patches/pi-01-dictation.patch
 patches/pi-02-controller.patch
 prepare_integrations.py
+profiles.py
 release-files.txt
 router.py
 test_integrations.py
 test_pi_voice.cjs
+test_profiles.py
 test_release.py
 test_router.py
 test_transcription.cjs

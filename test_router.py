@@ -157,6 +157,24 @@ class RouterCheck(unittest.TestCase):
             desktop.activate(20)
 
     @unittest.skipUnless(os.name == "nt", "Windows message-loop check")
+    def test_hotkey_reconfiguration_rolls_back_and_keeps_delivery(self):
+        from router import Win32, HOTKEYS
+        desktop = Win32()
+        desktop.user.RegisterHotKey = lambda hwnd, number, *args: number != 17
+        desktop.user.UnregisterHotKey = lambda *args: True
+        try:
+            desktop.register()
+            with self.assertRaises(OSError):
+                desktop.replace_hotkeys({**HOTKEYS, 17: ('select', 'extra')})
+            self.assertEqual(desktop.hotkeys, HOTKEYS)
+            self.assertTrue(desktop.worker.is_alive())
+            desktop.user.PostThreadMessageW(desktop.thread_id, 0x0312, 22, 0)
+            desktop.worker.join(timeout=0.05)
+            self.assertEqual(list(desktop.pending()), [22])
+        finally:
+            desktop.close()
+
+    @unittest.skipUnless(os.name == "nt", "Windows message-loop check")
     def test_hotkeys_survive_the_tk_message_loop(self):
         import tkinter as tk
         from ctypes import wintypes as w

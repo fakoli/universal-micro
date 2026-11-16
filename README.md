@@ -1,13 +1,15 @@
 # Universal Micro
 
-One Work Louder Codex Micro layer for **Dictate, Send, Stop and New chat** across native Codex, Hermes WebUI and Pi Web. The top buttons select and focus the harness. Your existing native Codex layer remains the fallback.
+One Work Louder Codex Micro layer for **Dictate, Send, Stop and New chat** across native Codex, Hermes WebUI, Pi Web and Claude desktop. Selector buttons focus the app. Add your own apps, windows and shortcuts in **Apps & shortcuts**. Your existing native Codex layer remains the fallback.
+
+Configurable profiles and Claude support are development changes after the preview below; they are not in the existing release archive.
 
 **Experimental Windows source preview — 0.1.0-preview.1.** See [releases](https://github.com/fakoli/universal-micro/releases), [validation and follow-up](OSS_CHECKLIST.md), and the supported revisions below. Browser support requires those exact patched revisions. Stock clients are not claimed compatible.
 
 ## What runs where
 
 - Windows router: Python standard library, Tk and Windows APIs; no listening port, browser extension, network calls or key logging.
-- Input: a separate layer emits seven F-keys. Existing layers and firmware are retained.
+- Input: a separate layer emits eight F-keys by default. Existing layers and firmware are retained.
 - Browser adapters: shortcuts invoke each client's composer controls. Hermes uses its existing dictation. Public Pi needs the included dictation prerequisite and an operator-configured speech service.
 
 Speech is recorded and transcribed by the harness, outside the router. Dictation inserts a draft; **Send is a separate action**. No speech provider or credentials are bundled.
@@ -20,6 +22,7 @@ Speech is recorded and transcribed by the harness, outside the router. Dictation
 | Python | 3.12–3.14 with Tk; local results in [release review](docs/RELEASE_REVIEW.md) |
 | Hardware/configurator | Codex Micro, Input 1.1.0; wired USB recommended; export your existing layout first |
 | Codex | Store-packaged Codex, verified package family `OpenAI.Codex_2p2nqsd0c76g0`; unpackaged builds are refused |
+| Claude | Windows Claude desktop; Ctrl+D / Enter / Escape / Ctrl+N verified in the installed shortcut list; physical acceptance remains separate |
 | Browser | Desktop Chrome; Edge process/title support is present but live acceptance remains unverified |
 | Hermes | Public `fakoli/hermes-webui` at `4772f16a95b5b7ad641780b6bd8a6a38f2109fb3` plus controller patch |
 | Pi | Public `agegr/pi-web` 0.17.0 at `174bff967807cdb59abb0204198d3d7cc19c862d` plus both ordered patches; experimental pending hardware acceptance |
@@ -41,25 +44,31 @@ Use your Micro touch sensor to select Universal Micro (typically Layer 3 when tw
 | Physical position | Key | Action |
 | --- | --- | --- |
 | Top row, left / right | F13 / F14 | Codex / Hermes |
-| Second row, far left | F15 | Pi |
+| Second row, first / second | F15 / F16 | Pi / Claude desktop |
 | Third row, first / second | F21 / F22 | Stop / New chat |
 | Bottom row, first / second | F19 / F20 | Dictate / Send |
 
 Other keys, encoders and joystick positions in this added layer are unassigned. Press Dictate to start and again to finish; wait for the draft before Send. Stop cancels the agent's run; finish dictation with Dictate. In Hermes select **dictation**, since raw-audio mode can send automatically and is refused by this adapter. In Pi choose a project before New chat.
 
+## Add apps, windows and hotkeys
+
+Open **Apps & shortcuts** in the router. Add an app, select a running window to fill its executable and title, then set its selector and native shortcuts. **Duplicate window** creates another profile for the same application; choose a distinct title rule for each. **Action input keys** adds or reassigns actions such as `steer`. Blank app shortcuts disable that action for that app.
+
+Input keys are F13–F24, with no duplicates. Assign the same F-key to an unused button in your added Input layer. Apps without a selector remain available through their **Focus** button. Apply saves to `%LOCALAPPDATA%\UniversalMicro\profiles.json` and requires selecting the app again. Cancel leaves active settings intact. See [profile details and recovery](docs/PROFILES.md).
+
 ## Startup and reconnect
 
 Enable **Start at Windows sign-in** in the router. This creates only its per-user `UniversalMicroRouter` Run value, with `--background`; the router opens minimized at sign-in. Windows may delay Run entries. Reopening the launcher restores the existing instance.
 
-Preferences live in `%LOCALAPPDATA%\UniversalMicro\bindings.json`. They save browser/process preferences, not window IDs or chat contents. Missing windows reconnect when a unique matching window appears. After a window or process changes, selection clears: press its harness key again before an action. Ambiguous windows require a choice; closing extra matching windows restores automatic discovery.
+Preferences live in `%LOCALAPPDATA%\UniversalMicro\bindings.json`. They save browser/process preferences, not window IDs or chat contents. Custom profiles separately save your chosen title patterns locally; treat that file as private. Missing windows reconnect when a unique matching window appears. After a window or process changes, selection clears: press its selector again before an action. Ambiguous windows require a choice; closing extra matching windows restores automatic discovery.
 
 An existing startup value pointing to another installation is preserved and cannot be replaced here. Keep using the existing installation until migration is reviewed. To migrate later, disable startup and close the old router first, then launch this one and opt in. Both installations use the same instance lock and F-keys and cannot run together.
 
 ## Recovery and removal
 
-Return the Micro to its original native Codex layer with the touch sensor at any time. This path works independently of the router. Close the router to release the seven global keys.
+Return the Micro to its original native Codex layer with the touch sensor at any time. This path works independently of the router. Close the router to release its configured global keys.
 
-To remove an installation, disable its startup checkbox **from that installation**, close it, and delete its source folder. Optionally delete its `bindings.json` when no other Universal Micro installation uses it. Remove only the added Universal Micro layer in Input; retain your full-layout backup and native layers. Removal does not require changing firmware, other startup programs or browser service configuration. Reverse the client patches separately as documented.
+To remove an installation, disable its startup checkbox **from that installation**, close it, and delete its source folder. Optionally delete its `bindings.json` and `profiles.json` when no other Universal Micro installation uses them. Remove only the added Universal Micro layer in Input; retain your full-layout backup and native layers. Removal does not require changing firmware, other startup programs or browser service configuration. Reverse the client patches separately as documented.
 
 ## Troubleshooting and development
 

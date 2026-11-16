@@ -1,6 +1,6 @@
 # Contributing
 
-Keep the first release small: Windows routing, the existing seven-key layer and the four actions. Propose further controls/platforms when there is a tested use case. Work in your own fork or a branch you control; do not patch someone else's live service to prove a contribution.
+Keep changes focused on Windows routing, configurable app/window profiles and native shortcuts. Propose further platforms when there is a tested use case. Work in your own fork or a branch you control; do not patch someone else's live service to prove a contribution.
 
 ## Local checks
 
@@ -12,7 +12,7 @@ node test_web_controller.cjs
 python check_release.py
 ```
 
-The unit checks use disposable files/Git repositories, a unique test mutex and stubbed global-key registration. They do not claim F13–F22, change startup, focus a harness, record speech or send a prompt. They can run with the real router active. Windows message-loop checks are skipped on other operating systems; that is not Windows runtime validation.
+The unit checks use disposable files/Git repositories, a unique test mutex and stubbed global-key registration. They do not claim F13–F24, change startup, focus a harness, record speech or send a prompt. They can run with the real router active. Windows message-loop checks are skipped on other operating systems; that is not Windows runtime validation.
 
 For client changes, follow [INTEGRATIONS.md](docs/INTEGRATIONS.md) to obtain public pinned sources and run both patched-source checks plus the Pi build and adjacent client tests. Those integration checks intentionally require the declared checkouts; no private captures or account access are needed. Node may print an experimental TypeScript-stripping warning in the Pi route check.
 
