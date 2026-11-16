@@ -1,6 +1,15 @@
 # Open-source readiness
 
-Target: **fakoli/universal-micro**, **MIT**, source preview **0.1.0-preview.1**. This checklist records evidence and release gates; checked boxes do not imply the project has been published. See [release review](docs/RELEASE_REVIEW.md) for exact validation results.
+Target: **fakoli/universal-micro**, **MIT**, source preview **0.2.0-preview.1**. This checklist records evidence and release gates; checked boxes do not imply the project has been published. See [release review](docs/RELEASE_REVIEW.md) for exact validation results.
+
+## Configurable apps and Claude update
+
+- [x] Apps/windows and shared F13–F24 input keys editable in the router; per-app output shortcuts and named custom actions supported without scripts or commands.
+- [x] Claude desktop default profile and F16 universal-layer selector; previous seven assignments and both native layers preserved.
+- [x] Validation, atomic settings writes, collision/save rollback and modal-editor fixes covered by automated checks and independent review.
+- [x] All 18 Python tests pass on 3.12/3.14; unchanged browser-controller and Hermes/Pi voice regression checks pass.
+- [x] Owner-operated physical Claude selection/dictation/Send/Stop/New chat and native Codex fallback pass on the installed setup.
+- [x] Owner authorized publishing this update; private profiles, full device layouts and recovery state excluded from the public source payload.
 
 ## Prepared for source review
 

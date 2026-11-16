@@ -2,7 +2,7 @@
 
 GitHub private vulnerability reporting is enabled for `fakoli/universal-micro`. Use [Report a vulnerability](https://github.com/fakoli/universal-micro/security/advisories/new) to contact the maintainer privately. Do not put vulnerabilities, secrets or personal data in public issues. If GitHub's private reporting form is unavailable, keep sensitive details private until the channel is available again.
 
-The first preview is the only planned supported version. No security audit or response-time guarantee is claimed. A report should identify the project version/adapter commit, synthetic reproduction and impact; omit recordings, chats, credentials, device exports and private deployment/model information.
+The latest source preview is the supported version. No security audit or response-time guarantee is claimed. A report should identify the project version/adapter commit, synthetic reproduction and impact; omit recordings, chats, credentials, device exports and private deployment/model information.
 
 ## Local keyboard automation
 

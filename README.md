@@ -2,9 +2,7 @@
 
 One Work Louder Codex Micro layer for **Dictate, Send, Stop and New chat** across native Codex, Hermes WebUI, Pi Web and Claude desktop. Selector buttons focus the app. Add your own apps, windows and shortcuts in **Apps & shortcuts**. Your existing native Codex layer remains the fallback.
 
-Configurable profiles and Claude support are development changes after the preview below; they are not in the existing release archive.
-
-**Experimental Windows source preview — 0.1.0-preview.1.** See [releases](https://github.com/fakoli/universal-micro/releases), [validation and follow-up](OSS_CHECKLIST.md), and the supported revisions below. Browser support requires those exact patched revisions. Stock clients are not claimed compatible.
+**Experimental Windows source preview — 0.2.0-preview.1.** Includes Claude desktop support and configurable apps, windows and hotkeys. See [releases](https://github.com/fakoli/universal-micro/releases), [validation and follow-up](OSS_CHECKLIST.md), and the supported revisions below. Browser support requires those exact patched revisions. Stock clients are not claimed compatible.
 
 ## What runs where
 
@@ -22,7 +20,7 @@ Speech is recorded and transcribed by the harness, outside the router. Dictation
 | Python | 3.12–3.14 with Tk; local results in [release review](docs/RELEASE_REVIEW.md) |
 | Hardware/configurator | Codex Micro, Input 1.1.0; wired USB recommended; export your existing layout first |
 | Codex | Store-packaged Codex, verified package family `OpenAI.Codex_2p2nqsd0c76g0`; unpackaged builds are refused |
-| Claude | Windows Claude desktop; Ctrl+D / Enter / Escape / Ctrl+N verified in the installed shortcut list; physical acceptance remains separate |
+| Claude | Windows Claude desktop; Ctrl+D / Enter / Escape / Ctrl+N verified in the installed shortcut list and owner-operated physical checks |
 | Browser | Desktop Chrome; Edge process/title support is present but live acceptance remains unverified |
 | Hermes | Public `fakoli/hermes-webui` at `4772f16a95b5b7ad641780b6bd8a6a38f2109fb3` plus controller patch |
 | Pi | Public `agegr/pi-web` 0.17.0 at `174bff967807cdb59abb0204198d3d7cc19c862d` plus both ordered patches; experimental pending hardware acceptance |
@@ -55,6 +53,10 @@ Other keys, encoders and joystick positions in this added layer are unassigned. 
 Open **Apps & shortcuts** in the router. Add an app, select a running window to fill its executable and title, then set its selector and native shortcuts. **Duplicate window** creates another profile for the same application; choose a distinct title rule for each. **Action input keys** adds or reassigns actions such as `steer`. Blank app shortcuts disable that action for that app.
 
 Input keys are F13–F24, with no duplicates. Assign the same F-key to an unused button in your added Input layer. Apps without a selector remain available through their **Focus** button. Apply saves to `%LOCALAPPDATA%\UniversalMicro\profiles.json` and requires selecting the app again. Cancel leaves active settings intact. See [profile details and recovery](docs/PROFILES.md).
+
+### Upgrade an existing seven-key setup
+
+Back up the installed router and device layout, then close the router before replacing its source files from the new archive in the same stable folder. Include the new `profiles.py` beside `router.py`; keep your user settings and startup location. Relaunch the existing launcher. Defaults preserve F13/F14/F15 and F19–F22. In Input, assign **F16** to the unused second button on the second row of the **Universal Micro** layer only; no full-layout import is needed. Keep native layers intact and select Claude with F16 before using an action.
 
 ## Startup and reconnect
 

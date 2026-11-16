@@ -1,5 +1,25 @@
 # Source preview review
 
+## 0.2.0-preview.1 — configurable apps and Claude
+
+**Experimental Windows source preview, 2026-11-15.** Adds an Apps & shortcuts editor, local app/window profiles, configurable F13–F24 selectors/actions and per-app native shortcuts. Claude desktop uses F16, Ctrl+D, Enter, Escape and Ctrl+N by default. Existing Codex/Hermes/Pi keys and the independent native Codex layer remain intact. Browser patches and their pinned revisions are unchanged from the prior preview.
+
+| Check | Result |
+| --- | --- |
+| Python 3.12.15 and 3.14.8 | 18/18 tests pass on both; includes custom window/action routing, persistence, invalid profiles, no-clobber oversized saves, registration collision/save-failure rollback and existing Windows safety checks |
+| Browser/controller checks | Web controller, public patched Hermes transcription/capture safety and public patched Pi speech/banner checks pass |
+| Independent feature review | Accepted after fixes for oversized profile saves, serialization-error rollback and restoring the editor's modal grab; reviewer independently reran targeted tests and disposable save-failure probes |
+| Installed source and persistence | Installed runtime matches reviewed source; profiles reload successfully; original startup entry and executable preferences preserved |
+| Device preservation | Full-layout structural comparison found only the intended third-layer `KC_NONE` to `KC_F16` change; both native layers and all seven existing universal assignments are unchanged |
+| Physical acceptance | Owner reports Claude selection, dictation, Send, Stop and New chat passed; native Codex Layer 1 fallback also passed |
+| Publication payload | Explicit 38-file source allowlist; private profile/device/recovery files remain excluded |
+
+The physical result applies to the owner's installed setup, not a fresh-machine qualification. Public Pi base, accessibility and fresh Windows acceptance remain follow-up as below. Windows restart/sign-in is owner-managed in a separate session and is outside this workstream's completion requirements. No restart result is claimed. Hosted checks for the published commit are available in [GitHub Actions](https://github.com/fakoli/universal-micro/actions/workflows/checks.yml).
+
+Upgrade and recovery: keep the installation folder and startup entry, include `profiles.py` alongside `router.py`, preserve per-user settings, and add only F16 to the unused universal-layer button. Back up the old source/layout first. Returning to the native Input layer remains independent of this router. For source rollback, restore the previous router files after closing the router; the previous version ignores F16. See [profiles](PROFILES.md) and the [README](../README.md).
+
+## Previous release: 0.1.0-preview.1
+
 **0.1.0-preview.1 — experimental source preview, 2026-11-14.** Repository: [fakoli/universal-micro](https://github.com/fakoli/universal-micro); license MIT. The owner authorized publication with the compatibility limits below.
 
 ## Included
